@@ -1,78 +1,56 @@
-// OWNER: Dev 4. The live grid: per-camera pYes over time, one block per slice.
-// Visibility below USABLE is dimmed so blind spots read as blind spots, not low answers.
-import { THRESHOLDS } from "@/lib/config";
-import type { CameraId, GridRow, Question } from "@/lib/types";
+// OWNER: Dev 4. The evidence grid card: per-camera pYes over time on a canvas. Brightness is
+// pVisible, so blind spots read as blind spots, not low answers.
+"use client";
 
-function cell(row: GridRow | undefined) {
-  if (!row) return "bg-neutral-100 text-neutral-300";
-  const usable = row.pVisible >= THRESHOLDS.USABLE;
-  if (!usable) return "bg-neutral-200 text-neutral-400";
-  if (row.pYes >= 0.7) return "bg-emerald-500 text-white";
-  if (row.pYes <= 0.3) return "bg-neutral-300 text-neutral-700";
-  return "bg-amber-300 text-amber-900";
-}
+import { useRef } from "react";
+import type { CameraId, Claim, GridRow, Question } from "@/lib/types";
+import { GRID_GROUP_H, drawGrid, gridQuestions, sliceWidth } from "@/components/canvas/drawGrid";
+import { useCanvasLoop } from "@/components/site/useCanvasLoop";
 
 export function Grid({
   grid,
   cameras,
   questions,
+  claims = [],
   excluded = [],
+  foot,
+  tRef,
 }: {
   grid: GridRow[];
   cameras: CameraId[];
   questions: Question[];
+  claims?: Claim[];
   excluded?: CameraId[];
+  foot: number;
+  tRef: { current: number };
 }) {
-  const times = [...new Set(grid.map((r) => r.t))].sort((a, b) => a - b);
-  const byKey = new Map(grid.map((r) => [`${r.questionId}:${r.camera}:${r.t}`, r]));
-  const isExcluded = (cam: CameraId) => excluded.includes(cam);
-
+  const ref = useRef<HTMLCanvasElement>(null);
+  const groups = Math.max(1, gridQuestions(grid, questions).length);
+  const height = grid.length ? Math.max(150, groups * GRID_GROUP_H) : 40;
+  useCanvasLoop(ref, (ctx, w, h) =>
+    drawGrid(ctx, w, h, { grid, questions, cameras, excluded, claims, foot, T: tRef.current }),
+  );
   return (
-    <div className="space-y-4">
-      {questions.map((q) => (
-        <div key={q.id}>
-          <div className="mb-1 text-sm text-neutral-700">{q.text}</div>
-          <div className="overflow-x-auto">
-            <table className="border-separate border-spacing-1 text-xs">
-              <thead>
-                <tr>
-                  <th className="w-10" />
-                  {times.map((t) => (
-                    <th key={t} className="w-10 font-mono font-normal text-neutral-400">
-                      {t}s
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {cameras.map((cam) => (
-                  <tr key={cam} className={isExcluded(cam) ? "opacity-30" : ""}>
-                    <td className="pr-1 font-mono text-neutral-500">{cam}</td>
-                    {times.map((t) => {
-                      const row = byKey.get(`${q.id}:${cam}:${t}`);
-                      return (
-                        <td
-                          key={t}
-                          className={`h-7 w-10 rounded text-center align-middle font-mono ${cell(row)}`}
-                          title={
-                            isExcluded(cam)
-                              ? "camera excluded by operator"
-                              : row
-                                ? `pYes ${row.pYes} · vis ${row.pVisible}`
-                                : "no answer"
-                          }
-                        >
-                          {row ? row.pYes.toFixed(2).slice(1) : ""}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+    <div className="rs-card" style={{ borderRadius: 16, padding: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 500 }}>Evidence grid</h2>
+        <span className="rs-mono" style={{ fontSize: 12, color: "#7D838C" }}>
+          pYes per camera · {sliceWidth(grid)}s slices · brightness = pVisible
+        </span>
+      </div>
+      <canvas
+        ref={ref}
+        role="img"
+        aria-label={`Evidence grid: ${groups} questions × ${cameras.length} cameras`}
+        style={{ width: "100%", height, display: "block", marginTop: 12 }}
+      />
+      <div className="rs-mono" style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 12, color: "#7D838C", flexWrap: "wrap" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 28, height: 6, borderRadius: 3, background: "linear-gradient(90deg,#FF5A47,#FFC23D,#5BE49B)" }} />
+          pYes 0 → 1
+        </span>
+        <span>gemini-decision-1</span>
+      </div>
     </div>
   );
 }

@@ -105,3 +105,25 @@ describe("metrics", () => {
     expect(planned).toHaveLength(2);
   });
 });
+
+describe("accuracyByLabel", () => {
+  it("scores each true label separately and ignores Ambiguous", async () => {
+    const { accuracyByLabel } = await import("./stats");
+    const mk = (predicted: "Supported" | "Contradicted" | "Insufficient", truth: "Supported" | "Contradicted" | "Insufficient" | "Ambiguous") => ({
+      sceneId: "s",
+      claimId: `${predicted}-${truth}-${Math.random()}`,
+      predicted,
+      truth,
+    });
+    const r = accuracyByLabel([
+      mk("Supported", "Supported"),
+      mk("Insufficient", "Supported"),
+      mk("Contradicted", "Contradicted"),
+      mk("Contradicted", "Ambiguous"),
+    ]);
+    expect(r.Supported.count).toBe(1);
+    expect(r.Supported.total).toBe(2);
+    expect(r.Contradicted.rate).toBe(1);
+    expect(r.Insufficient.total).toBe(0);
+  });
+});
