@@ -22,10 +22,25 @@ describe("recordingPath", () => {
     expect(recordingPath("s1", "A")).toBe(path.join(dir, "cam-A.mp4"));
   });
 
-  it("prefers the manifest's file entry when it exists on disk", () => {
-    const other = path.join(dir, "other.webm");
+  it("resolves a relative manifest entry inside the scene folder, not the working directory", () => {
+    writeFileSync(path.join(dir, "cam-C.webm"), "x");
+    writeFileSync(path.join(dir, "renamed-C.webm"), "x");
+    expect(recordingPath("s1", "C", { C: "renamed-C.webm" })).toBe(path.join(dir, "renamed-C.webm"));
+    expect(recordingPath("s1", "C", { C: "cam-C.webm" })).toBe(path.join(dir, "cam-C.webm"));
+  });
+
+  it("uses an absolute manifest entry when it exists", () => {
+    const other = path.join(dataDir, "elsewhere-B.webm");
     writeFileSync(other, "x");
     expect(recordingPath("s1", "B", { B: other })).toBe(other);
-    expect(recordingPath("s1", "B", { B: path.join(dir, "gone.webm") })).toBeNull();
+  });
+
+  it("falls back to the cam-X convention when the listed file is missing or unsafe", () => {
+    writeFileSync(path.join(dir, "cam-D.webm"), "x");
+    const conv = path.join(dir, "cam-D.webm");
+    expect(recordingPath("s1", "D", { D: "gone.webm" })).toBe(conv);
+    expect(recordingPath("s1", "D", { D: path.join(dataDir, "gone.webm") })).toBe(conv);
+    expect(recordingPath("s1", "D", { D: "../../escape.webm" })).toBe(conv);
+    expect(recordingPath("s1", "B", { B: "gone.webm" })).toBeNull();
   });
 });
