@@ -159,6 +159,18 @@ export interface AgentStep {
   latencyMs: number;
 }
 
+// ---------- pipeline ----------
+/** data/scenes/<id>/run.json: progress of the scene pipeline, read by the board's event stream. */
+export interface RunStatus {
+  status: "queued" | "running" | "done" | "failed";
+  /** Current stage, or the stage that failed: claims, probe, sync, slice, scout, lattice, evidence, audit, stills, agents, done. */
+  stage: string;
+  startedAt: string;
+  finishedAt?: string;
+  /** Why it failed: the error message, or "budget" for a budget stop. */
+  error?: string;
+}
+
 // ---------- evaluation ----------
 export interface GroundTruthItem {
   sceneId: string;

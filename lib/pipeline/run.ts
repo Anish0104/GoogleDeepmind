@@ -1,0 +1,279 @@
+// OWNER: Dev 3. The scene pipeline. Every stage is injected (same pattern as runAgent), so tests use fakes;
+// the defaults call each dev's real function exactly as it is.
+//
+// Order: claims -> probe -> sync -> slice -> scout -> lattice -> per claim (evidence -> pickCitation -> audit
+// -> verdict -> saveResult) -> stills.json -> agents.
+// - claims.json is written by Dev 2's account route; missing or empty fails stage "claims" before any work.
+// - probe records each included camera's recording and the shortest duration into manifest.json.
+// - Excluded cameras are never probed, and their grid rows and evidence are dropped before any label work.
+// - assertBudget() runs before every Gemini-calling stage (scout, lattice, each audit, agents); a budget
+//   stop is a clean failed status with error "budget".
+// - Progress goes to data/scenes/<id>/run.json. A failed stage records its name and message; results
+//   already saved stay on disk.
+import { z } from "zod";
+import { BudgetExceededError, assertBudget } from "@/lib/cost";
+import { recordingPath } from "@/lib/capture/files";
+import { sliceScene, type Slice } from "@/lib/capture/slice";
+import { syncScene } from "@/lib/capture/sync";
+import { evidenceFor } from "@/lib/inference/evidence";
+import { verdict } from "@/lib/inference/verdict";
+import { latticeScene } from "@/lib/perception/lattice";
+import { scout } from "@/lib/perception/scout";
+import { loadManifest, NotFoundError, readJson, saveResult, writeJson } from "@/lib/store/scene";
+import { audit } from "@/lib/truth/auditor";
+import { AuditUnavailableError } from "@/lib/truth/errors";
+import { probe } from "@/lib/video/ffmpeg";
+import type {
+  AgentName,
+  Audit,
+  CameraId,
+  Claim,
+  ClaimResult,
+  Evidence,
+  GridRow,
+  Question,
+  RunStatus,
+  SceneManifest,
+  SyncResult,
+  Verdict,
+} from "@/lib/types";
+import { eligibleAgent, withoutExcluded } from "@/lib/agent/eligibility";
+import { startAgent, type AgentOutcome } from "@/lib/agent/start";
+
+export const RUN_FILE = "run.json";
+export const NO_CLAIMS = "no claims; submit the account first";
+/** scout() reads at most this many stills. */
+const SCOUT_STILLS = 8;
+
+export interface PipelineDeps {
+  loadManifest: (sceneId: string) => Promise<SceneManifest>;
+  loadClaims: (sceneId: string) => Promise<Claim[]>;
+  recordingPath: (sceneId: string, camera: CameraId, files?: SceneManifest["files"]) => string | null;
+  probe: (file: string) => Promise<{ durationS: number }>;
+  syncScene: (manifest: SceneManifest) => Promise<SyncResult[]>;
+  sliceScene: (manifest: SceneManifest, sync: SyncResult[]) => Promise<Slice[]>;
+  scout: (stillPaths: string[], sceneId: string) => Promise<{ questions: Question[] }>;
+  latticeScene: (slices: Slice[], questions: Question[], sceneId: string) => Promise<GridRow[]>;
+  evidenceFor: (claim: Claim, rows: GridRow[], questions: Question[]) => Evidence[];
+  /** Dev 2's choice of the clip to audit; null means no audit (verdict gets null). */
+  pickCitation: (claim: Claim, evidence: Evidence[]) => Evidence | null;
+  audit: (claim: Claim, cited: Evidence) => Promise<Audit>;
+  verdict: (evidence: Evidence[], claim: Claim, audit: Audit | null) => Verdict;
+  saveResult: (sceneId: string, result: ClaimResult) => Promise<void>;
+  writeJson: (sceneId: string, file: string, data: unknown) => Promise<void>;
+  assertBudget: () => Promise<void>;
+  eligibleAgent: (result: ClaimResult, claim: Claim) => AgentName | null;
+  /** Runs one agent on one claim (respects AGENT_MODE). */
+  startAgent: (agent: AgentName, claim: Claim, sceneId: string) => Promise<AgentOutcome>;
+  /** Called whenever the current stage changes (logging; tests use it). */
+  onStage?: (stage: string) => void;
+  now: () => Date;
+}
+
+const ClaimSchema = z.object({
+  id: z.string().min(1),
+  sceneId: z.string(),
+  text: z.string(),
+  actor: z.string(),
+  object: z.string(),
+  action: z.string(),
+  window: z.tuple([z.number(), z.number()]),
+  timeIsPrecise: z.boolean(),
+}) satisfies z.ZodType<Claim>;
+
+/** claims.json from the scene store (Dev 2's account route writes it); [] if it doesn't exist yet. */
+export async function loadClaims(sceneId: string): Promise<Claim[]> {
+  try {
+    return await readJson(sceneId, "claims.json", z.array(ClaimSchema));
+  } catch (e) {
+    if (e instanceof NotFoundError) return [];
+    throw e;
+  }
+}
+
+/** The real stages. pickCitation is not on main yet, so callers must supply it. */
+export const defaultPipelineDeps: Omit<PipelineDeps, "pickCitation"> = {
+  loadManifest,
+  loadClaims,
+  recordingPath,
+  probe,
+  syncScene,
+  sliceScene,
+  scout,
+  latticeScene: (slices, questions, sceneId) => latticeScene(slices, questions, sceneId),
+  evidenceFor,
+  audit,
+  verdict,
+  saveResult,
+  writeJson,
+  assertBudget: () => assertBudget(),
+  eligibleAgent,
+  startAgent: (agent, claim, sceneId) => startAgent(agent, claim, sceneId),
+  now: () => new Date(),
+};
+
+// ---------- one run per scene (in this process) ----------
+
+const locked = new Set<string>();
+
+export const isSceneLocked = (sceneId: string): boolean => locked.has(sceneId);
+
+/** Takes the scene's lock; returns a release function, or null if a run (pipeline or agent) holds it. */
+export function lockScene(sceneId: string): (() => void) | null {
+  if (locked.has(sceneId)) return null;
+  locked.add(sceneId);
+  let released = false;
+  return () => {
+    if (!released) locked.delete(sceneId);
+    released = true;
+  };
+}
+
+// ---------- helpers ----------
+
+class StageError extends Error {}
+
+/** Up to SCOUT_STILLS stills, spread over time and shared evenly between cameras. */
+function scoutStills(slices: Slice[]): string[] {
+  const byCam = new Map<CameraId, Slice[]>();
+  for (const s of [...slices].sort((a, b) => a.t - b.t)) byCam.set(s.camera, [...(byCam.get(s.camera) ?? []), s]);
+  const per = Math.max(1, Math.floor(SCOUT_STILLS / Math.max(1, byCam.size)));
+  const out: string[] = [];
+  for (const list of byCam.values()) {
+    for (let k = 1; k <= per && k <= list.length; k++) out.push(list[Math.floor((k * list.length) / (per + 1))]!.stillPath);
+  }
+  return out.slice(0, SCOUT_STILLS);
+}
+
+/** stills.json: camera -> the middle slice's still, as a path inside the scene folder. */
+function stillIds(slices: Slice[], excluded: Set<CameraId>): Partial<Record<CameraId, string>> {
+  const out: Partial<Record<CameraId, string>> = {};
+  const cams = [...new Set(slices.map((s) => s.camera))].filter((c) => !excluded.has(c)).sort();
+  for (const c of cams) {
+    const list = slices.filter((s) => s.camera === c).sort((a, b) => a.t - b.t);
+    const mid = list[Math.floor(list.length / 2)]!;
+    out[c] = mid.stillPath.match(/(?:^|[\\/])(stills[\\/].+)$/)?.[1]?.replace(/\\/g, "/") ?? mid.stillPath;
+  }
+  return out;
+}
+
+// ---------- the run ----------
+
+/** Runs the whole pipeline for one scene. Never throws: the final RunStatus (also in run.json) is returned. */
+export async function runPipeline(sceneId: string, deps: PipelineDeps): Promise<RunStatus> {
+  const d = deps;
+  const startedAt = d.now().toISOString();
+  let stage = "queued";
+  const write = (s: RunStatus) => d.writeJson(sceneId, RUN_FILE, s);
+  /** Moves to a stage; `show` writes it to run.json (sub-steps of the claim loop are not written). */
+  const enter = async (next: string, show = true) => {
+    stage = next;
+    d.onStage?.(next);
+    if (show) await write({ status: "running", stage, startedAt });
+  };
+
+  try {
+    // claims: cheapest check first, so nothing is spent on a scene with no account yet.
+    await enter("claims");
+    const claims = await d.loadClaims(sceneId);
+    if (claims.length === 0) throw new StageError(NO_CLAIMS);
+
+    // probe: files and durationS into manifest.json before sync.
+    await enter("probe");
+    let manifest = await d.loadManifest(sceneId);
+    const excluded = new Set<CameraId>(manifest.excludedCameras);
+    const included = manifest.cameras.filter((c) => !excluded.has(c));
+    const files: SceneManifest["files"] = {};
+    const durations: number[] = [];
+    for (const camera of included) {
+      const file = d.recordingPath(sceneId, camera, manifest.files);
+      if (!file) throw new StageError(`no recording for camera ${camera}`);
+      const { durationS } = await d.probe(file);
+      files[camera] = file;
+      durations.push(durationS);
+    }
+    manifest = { ...manifest, files: { ...manifest.files, ...files }, durationS: Math.min(...durations) };
+    await d.writeJson(sceneId, "manifest.json", manifest); // atomic (temp file + rename)
+
+    await enter("sync");
+    const sync = await d.syncScene(manifest);
+
+    await enter("slice");
+    const slices = (await d.sliceScene(manifest, sync)).filter((s) => !excluded.has(s.camera));
+
+    await enter("scout");
+    await d.assertBudget();
+    const { questions } = await d.scout(scoutStills(slices), sceneId);
+
+    await enter("lattice");
+    await d.assertBudget();
+    const rows = (await d.latticeScene(slices, questions, sceneId)).filter((r) => !excluded.has(r.camera));
+
+    await enter("evidence");
+    const saved: { claim: Claim; result: ClaimResult }[] = [];
+    for (const claim of claims) {
+      await enter("evidence", false);
+      const evidence = withoutExcluded(d.evidenceFor(claim, rows, questions), manifest.excludedCameras);
+      const cited = d.pickCitation(claim, evidence);
+      let checked: Audit | null = null;
+      if (cited) {
+        await enter("audit", false);
+        await d.assertBudget();
+        try {
+          checked = await d.audit(claim, cited);
+        } catch (e) {
+          // Dev 2's documented contract: no reachable media -> verdict without an audit (Insufficient path).
+          if (!(e instanceof AuditUnavailableError)) throw e;
+        }
+      }
+      await enter("verdict", false);
+      const result: ClaimResult = { claimId: claim.id, verdict: d.verdict(evidence, claim, checked), evidence, audit: checked, history: [] };
+      await d.saveResult(sceneId, result);
+      saved.push({ claim, result });
+    }
+
+    await enter("stills");
+    await d.writeJson(sceneId, "stills.json", stillIds(slices, excluded));
+
+    await enter("agents");
+    const work = saved
+      .map(({ claim, result }) => ({ claim, agent: d.eligibleAgent(result, claim) }))
+      .filter((w): w is { claim: Claim; agent: AgentName } => w.agent !== null);
+    if (work.length) await d.assertBudget();
+    for (const { claim, agent } of work) await d.startAgent(agent, claim, sceneId); // saves its own result
+
+    const done: RunStatus = { status: "done", stage: "done", startedAt, finishedAt: d.now().toISOString() };
+    await write(done);
+    return done;
+  } catch (e) {
+    const error = e instanceof BudgetExceededError ? "budget" : e instanceof Error ? e.message : String(e);
+    const failed: RunStatus = { status: "failed", stage, startedAt, finishedAt: d.now().toISOString(), error };
+    if (!(e instanceof StageError) && !(e instanceof BudgetExceededError)) console.error(`[pipeline] ${sceneId} ${stage}:`, e);
+    try {
+      await write(failed);
+    } catch (w) {
+      console.error(`[pipeline] ${sceneId}: could not write ${RUN_FILE}:`, w);
+    }
+    return failed;
+  }
+}
+
+export type StartResult = { started: true; done: Promise<RunStatus> } | { started: false; reason: string };
+
+/**
+ * Starts the pipeline in the background if the scene is not already running (pipeline or agent).
+ * Writes run.json { status: "queued" } first. The lock is released when the run ends.
+ */
+export function startPipeline(sceneId: string, deps: PipelineDeps): StartResult {
+  const release = lockScene(sceneId);
+  if (!release) return { started: false, reason: `Scene ${sceneId} already has a run in progress.` };
+  const done = (async () => {
+    try {
+      await deps.writeJson(sceneId, RUN_FILE, { status: "queued", stage: "queued", startedAt: deps.now().toISOString() } satisfies RunStatus);
+      return await runPipeline(sceneId, deps);
+    } finally {
+      release();
+    }
+  })();
+  return { started: true, done };
+}
