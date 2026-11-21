@@ -1,0 +1,35 @@
+{
+  "agent": "investigator",
+  "claim": {
+    "id": "sample-c1",
+    "sceneId": "sample-scene",
+    "text": "I put the red mug on the table in zone C",
+    "actor": "speaker",
+    "object": "red mug",
+    "action": "place",
+    "window": [10, 14],
+    "timeIsPrecise": false
+  },
+  "currentVerdict": "Insufficient",
+  "evidence": [
+    {
+      "camera": "A",
+      "window": [10, 12],
+      "visible": 0.35,
+      "supports": null,
+      "contradicts": null,
+      "clipId": "sample-clip-A-10",
+      "source": "initial"
+    }
+  ],
+  "views": [
+    { "camera": "A", "text": "behind the actor, zone C partly blocked by their shoulder" },
+    { "camera": "B", "text": "side-on to zones B and C, unobstructed" },
+    { "camera": "C", "text": "high wide shot of the whole mat, small but unobstructed" }
+  ],
+  "stillIds": { "A": "still-A-12", "B": "still-B-12", "C": "still-C-12" },
+  "includedCameras": ["A", "B", "C"],
+  "allowedRangeS": [6, 18],
+  "alreadyChecked": [{ "camera": "A", "window": [10, 12] }],
+  "followUpsLeft": 2
+}

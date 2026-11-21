@@ -1,0 +1,54 @@
+[
+  {
+    "id": "c1",
+    "sceneId": "demo-scene",
+    "text": "Sam put the red mug in zone C",
+    "actor": "Sam",
+    "object": "red mug",
+    "action": "put",
+    "window": [
+      5,
+      9
+    ],
+    "timeIsPrecise": true
+  },
+  {
+    "id": "c2",
+    "sceneId": "demo-scene",
+    "text": "Then Sam moved the red mug to zone D",
+    "actor": "Sam",
+    "object": "red mug",
+    "action": "moved",
+    "window": [
+      15,
+      18
+    ],
+    "timeIsPrecise": true
+  },
+  {
+    "id": "c3",
+    "sceneId": "demo-scene",
+    "text": "Ana put the kettle in zone E",
+    "actor": "Ana",
+    "object": "kettle",
+    "action": "put",
+    "window": [
+      8,
+      11
+    ],
+    "timeIsPrecise": true
+  },
+  {
+    "id": "c4",
+    "sceneId": "demo-scene",
+    "text": "Later Ana moved the kettle to zone E",
+    "actor": "Ana",
+    "object": "kettle",
+    "action": "moved",
+    "window": [
+      23,
+      26
+    ],
+    "timeIsPrecise": true
+  }
+]

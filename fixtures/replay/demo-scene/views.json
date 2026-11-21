@@ -1,0 +1,18 @@
+[
+  {
+    "camera": "A",
+    "text": "front of the mat, zones A-C; a person often stands in front of it"
+  },
+  {
+    "camera": "B",
+    "text": "left side, zones B-D, low angle"
+  },
+  {
+    "camera": "C",
+    "text": "high right corner, wide view of zones C-F"
+  },
+  {
+    "camera": "D",
+    "text": "fell over during the scene (excluded)"
+  }
+]

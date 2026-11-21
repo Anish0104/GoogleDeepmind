@@ -72,8 +72,9 @@ describe("validate", () => {
     });
 
     it("accepts a window exactly on the range edges", () => {
-      expect(validate(args({ start_s: 5, end_s: 6 }), menu()).ok).toBe(true);
-      expect(validate(args({ start_s: 16, end_s: 20 }), menu()).ok).toBe(true);
+      const wide = menu({ claim: { ...claim, window: [5, 20] } }); // claim window = range, to isolate this rule
+      expect(validate(args({ start_s: 5, end_s: 6 }), wide).ok).toBe(true);
+      expect(validate(args({ start_s: 16, end_s: 20 }), wide).ok).toBe(true);
     });
   });
 
@@ -115,8 +116,9 @@ describe("validate", () => {
     });
 
     it("accepts a window that only touches a checked one", () => {
-      expect(validate(args({ start_s: 12, end_s: 14 }), checked).ok).toBe(true);
-      expect(validate(args({ start_s: 8, end_s: 10 }), checked).ok).toBe(true);
+      const wide = { ...checked, claim: { ...claim, window: [5, 20] as [number, number] } };
+      expect(validate(args({ start_s: 12, end_s: 14 }), wide).ok).toBe(true);
+      expect(validate(args({ start_s: 8, end_s: 10 }), wide).ok).toBe(true);
     });
 
     it("accepts the same window on a different camera", () => {
@@ -176,6 +178,36 @@ describe("StopArgsSchema", () => {
   it("rejects a missing or empty reason", () => {
     expect(StopArgsSchema.safeParse({}).success).toBe(false);
     expect(StopArgsSchema.safeParse({ reason: "" }).success).toBe(false);
+  });
+});
+
+describe("claim window overlap", () => {
+  // claim.window is [10, 14]; allowedRangeS is [5, 20] (the claim window plus padding).
+  it("rejects a clip entirely before or after the claim window, naming it", () => {
+    expect(reasonOf(validate(args({ start_s: 5, end_s: 7 }), menu()))).toBe("Clip must overlap the claim window 10–14 s.");
+    expect(reasonOf(validate(args({ start_s: 16, end_s: 19 }), menu()))).toBe("Clip must overlap the claim window 10–14 s.");
+  });
+
+  it("rejects a clip that only touches the claim window", () => {
+    expect(validate(args({ start_s: 8, end_s: 10 }), menu()).ok).toBe(false);
+    expect(validate(args({ start_s: 14, end_s: 16 }), menu()).ok).toBe(false);
+  });
+
+  it("accepts a clip that extends into the padding on either side", () => {
+    expect(validate(args({ start_s: 7, end_s: 10.5 }), menu()).ok).toBe(true);
+    expect(validate(args({ start_s: 13.5, end_s: 17 }), menu()).ok).toBe(true);
+  });
+
+  it("formats fractional claim windows", () => {
+    const m = menu({ claim: { ...claim, window: [9.5, 12] } });
+    expect(reasonOf(validate(args({ start_s: 5, end_s: 7 }), m))).toBe("Clip must overlap the claim window 9.5–12 s.");
+  });
+
+  it("is part of validateWindow()", () => {
+    expect(validateWindow(args({ start_s: 5, end_s: 7 }), menu())).toEqual({
+      ok: false,
+      reason: "Clip must overlap the claim window 10–14 s.",
+    });
   });
 });
 
