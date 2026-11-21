@@ -105,6 +105,7 @@ describe("answer-key guard: the warehouse eval is the only new reader of data/la
   /** Existing files that touch data/labels, with why; any other file naming a labels path fails. */
   const KNOWN_LABELS_USERS: Record<string, string> = {
     "lib/capture/assembly101.ts": "Dev 1: WRITES the Assembly101 answer key (<sceneId>.labels.json); never reads it",
+    "lib/capture/sdgWarehouse.ts": "Dev 1: WRITES the SDG-Warehouse answer key (<sceneId>.truth.json) the eval reads; never reads it",
     "app/label/actions.ts": "Dev 4: the human labelling tool reads/writes its own <sceneId>__<labeler>.json files",
     "eval/report.ts": "Dev 4: the results report reads the merged human labels (<sceneId>.json)",
   };
