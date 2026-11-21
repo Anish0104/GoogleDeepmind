@@ -1,0 +1,5 @@
+[
+  { "entityId": "e1", "from": "table", "to": "shelf", "t": 5, "confidence": 0.86, "cameras": ["A", "B"] },
+  { "entityId": "e2", "from": "table", "to": "under cloth", "t": 11, "confidence": 0.91, "cameras": ["C"] },
+  { "entityId": "e4", "from": "closed", "to": "unknown", "t": 17, "confidence": 0.33, "cameras": ["B", "C"] }
+]

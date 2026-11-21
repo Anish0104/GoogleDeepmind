@@ -1,0 +1,42 @@
+[
+  {
+    "id": "c1",
+    "sceneId": "demo-001",
+    "text": "I moved the red mug to the shelf.",
+    "actor": "Actor 1",
+    "object": "red mug",
+    "action": "move",
+    "window": [3, 7],
+    "timeIsPrecise": true
+  },
+  {
+    "id": "c2",
+    "sceneId": "demo-001",
+    "text": "I put the keys in the drawer.",
+    "actor": "Actor 1",
+    "object": "keys",
+    "action": "put",
+    "window": [9, 13],
+    "timeIsPrecise": true
+  },
+  {
+    "id": "c3",
+    "sceneId": "demo-001",
+    "text": "I kept the phone in my hand the whole time.",
+    "actor": "Actor 1",
+    "object": "phone",
+    "action": "hold",
+    "window": [0, 22],
+    "timeIsPrecise": false
+  },
+  {
+    "id": "c4",
+    "sceneId": "demo-001",
+    "text": "I opened the blue box.",
+    "actor": "Actor 1",
+    "object": "blue box",
+    "action": "open",
+    "window": [15, 19],
+    "timeIsPrecise": true
+  }
+]

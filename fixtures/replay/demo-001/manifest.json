@@ -1,0 +1,16 @@
+{
+  "sceneId": "demo-001",
+  "split": "demo",
+  "room": "Room 1",
+  "cameras": ["A", "B", "C", "D"],
+  "excludedCameras": ["D"],
+  "files": {
+    "A": "cam-A.webm",
+    "B": "cam-B.webm",
+    "C": "cam-C.webm",
+    "D": "cam-D.webm"
+  },
+  "durationS": 22,
+  "createdAt": "2026-11-21T15:30:00Z",
+  "plannedOcclusion": true
+}

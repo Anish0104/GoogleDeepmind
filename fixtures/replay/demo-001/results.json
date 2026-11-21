@@ -1,0 +1,52 @@
+[
+  {
+    "claimId": "c1",
+    "verdict": "Supported",
+    "evidence": [
+      { "camera": "A", "window": [3, 7], "visible": 0.92, "supports": 0.88, "contradicts": 0.04, "clipId": "clip-c1-A", "source": "initial" },
+      { "camera": "B", "window": [3, 7], "visible": 0.88, "supports": 0.84, "contradicts": 0.05, "clipId": "clip-c1-B", "source": "initial" }
+    ],
+    "audit": { "supportScore": 0.86, "contradictScore": 0.04, "clipId": "clip-c1-A" },
+    "history": [
+      { "from": "Insufficient", "to": "Supported", "by": "initial", "reason": "Two usable cameras (A, B) agree: mug placed on shelf, score 0.86 ≥ 0.80.", "at": "2026-11-21T15:31:02Z" }
+    ]
+  },
+  {
+    "claimId": "c2",
+    "verdict": "Contradicted",
+    "evidence": [
+      { "camera": "C", "window": [9, 13], "visible": 0.85, "supports": 0.06, "contradicts": 0.93, "clipId": "clip-c2-C", "source": "initial" },
+      { "camera": "A", "window": [9, 13], "visible": 0.71, "supports": 0.81, "contradicts": 0.10, "clipId": "clip-c2-A", "source": "skeptic" }
+    ],
+    "audit": { "supportScore": 0.06, "contradictScore": 0.93, "clipId": "clip-c2-C" },
+    "history": [
+      { "from": "Insufficient", "to": "Contradicted", "by": "initial", "reason": "Camera C clearly shows the keys going under the cloth, not into the drawer: contradict 0.93 ≥ 0.90.", "at": "2026-11-21T15:31:03Z" },
+      { "from": "Contradicted", "to": "Supported", "by": "skeptic", "blocked": true, "reason": "Skeptic may only downgrade to Insufficient.", "at": "2026-11-21T15:33:10Z" }
+    ]
+  },
+  {
+    "claimId": "c3",
+    "verdict": "Insufficient",
+    "evidence": [
+      { "camera": "B", "window": [0, 22], "visible": 0.64, "supports": 0.82, "contradicts": 0.08, "clipId": "clip-c3-B", "source": "initial" },
+      { "camera": "A", "window": [0, 4], "visible": 0.41, "supports": 0.30, "contradicts": 0.22, "clipId": "clip-c3-A", "source": "skeptic" }
+    ],
+    "audit": { "supportScore": 0.82, "contradictScore": 0.08, "clipId": "clip-c3-B" },
+    "history": [
+      { "from": "Insufficient", "to": "Supported", "by": "initial", "reason": "One usable camera (B) supports at 0.82 ≥ 0.80; support rests on a single camera.", "at": "2026-11-21T15:31:03Z" },
+      { "from": "Supported", "to": "Insufficient", "by": "skeptic", "reason": "Second angle (A) shows the hand empty for ~2s near the start; single-camera support no longer holds.", "at": "2026-11-21T15:33:40Z" }
+    ]
+  },
+  {
+    "claimId": "c4",
+    "verdict": "Insufficient",
+    "evidence": [
+      { "camera": "B", "window": [15, 19], "visible": 0.38, "supports": null, "contradicts": null, "clipId": "clip-c4-B", "source": "initial" },
+      { "camera": "C", "window": [15, 19], "visible": 0.44, "supports": null, "contradicts": null, "clipId": "clip-c4-C", "source": "investigator" }
+    ],
+    "audit": null,
+    "history": [
+      { "from": "Insufficient", "to": "Insufficient", "by": "initial", "reason": "A hand blocks the blue box on every usable camera at the key moment (visibility < 0.60).", "at": "2026-11-21T15:31:04Z" }
+    ]
+  }
+]
