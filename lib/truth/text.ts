@@ -52,6 +52,34 @@ export function mentionsAllowingArticles(haystack: string, phrase: string, infle
   return false;
 }
 
+const MIN_STEM = 3;
+const NO_UNDOUBLE = new Set(["s", "l", "z"]); // "passing" -> "pass", not "pas"
+
+/**
+ * One conservative form for an English word: strips ONE of -ing / -ed / -es / -s (only when at least
+ * three letters remain), then undoubles a final consonant left by that suffix ("tipped" -> "tip"); a
+ * word with no suffix drops a final "e" ("dodge" -> "dodg"). Inflections of one word share a form;
+ * different words stay different. Never maps synonyms.
+ */
+function wordForm(w: string): string {
+  for (const suffix of ["ing", "ed", "es", "s"]) {
+    if (!w.endsWith(suffix) || (suffix === "s" && w.endsWith("ss"))) continue;
+    const stem = w.slice(0, -suffix.length);
+    if (stem.length < MIN_STEM) continue;
+    const a = stem.at(-1)!;
+    const undouble = (suffix === "ing" || suffix === "ed") && a === stem.at(-2) && !/[aeiou]/.test(a) && !NO_UNDOUBLE.has(a);
+    return undouble ? stem.slice(0, -1) : stem;
+  }
+  return w.length > MIN_STEM && w.endsWith("e") ? w.slice(0, -1) : w;
+}
+
+/**
+ * Canonical form of a state phrase for comparing a claim's state with a question's state value:
+ * articles removed, each remaining word reduced by wordForm(), word order kept.
+ * "the worker dodged" / "dodging" and "moved" / "moving" match; "hit" never matches "touching".
+ */
+export const stateForm = (s: string) => withoutArticles(s).split(" ").filter(Boolean).map(wordForm).join(" ");
+
 /** cyrb53-style 53-bit hash as 14 hex chars; deterministic, no randomness or clock. */
 export function stableHash(s: string): string {
   let h1 = 0xdeadbeef;
