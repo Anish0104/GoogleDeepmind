@@ -9,7 +9,7 @@
 //     Unparseable grid.jsonl lines are skipped (a live append can leave a half-written last line).
 //  3. assertBudget() before claim extraction: over budget is 429, an unreadable budget is 503 (fail closed).
 //  4. splitClaims(), with the manifest's durationS when it is > 0 so untimed claims span the scene
-//     (never precise) instead of being withheld. A model failure is 502: never an empty account.
+//     (never precise) instead of being withheld. A model failure is 502; no surviving claim is 422 (with the rejection reasons), writing nothing: never an empty account.
 //  5. Per claim, in order:
 //     - a stored result already changed by an agent (history entry not by "initial") is kept as is;
 //     - resolveGrounding() with Dev 1's registered exclusive state pairs (lib/truth/exclusive.ts), so a
@@ -43,21 +43,31 @@ import { evidenceForTarget } from "@/lib/inference/evidence";
 import { CAMERA_IDS } from "@/lib/inference/grid";
 import { verdict } from "@/lib/inference/verdict";
 import { auditCitation } from "@/lib/truth/auditor";
-import { splitClaims } from "@/lib/truth/claims";
-import { ClaimExtractionError } from "@/lib/truth/errors";
+import { splitClaimsDetailed } from "@/lib/truth/claims";
+import { ClaimExtractionError, ClaimOutputError } from "@/lib/truth/errors";
+import { checkStatement } from "@/lib/truth/statement";
 import { resolveGrounding, type SceneRegistry } from "@/lib/truth/grounding";
 import { registeredExclusivePairs } from "@/lib/truth/exclusive";
 
 /** A failure of the account request, with the HTTP status the route returns. */
+/**
+ * Why an account produced no labels, so the UI can say what to do: not_a_statement (rejected before any model
+ * call), no_claims_proposed (the model found none), claims_rejected (every proposed claim failed validation),
+ * model_output_invalid (unusable model output, after one retry), model_unavailable (the model call failed).
+ */
+export type AccountErrorCode = "not_a_statement" | "no_claims_proposed" | "claims_rejected" | "model_output_invalid" | "model_unavailable";
+
 export class AccountError extends Error {
   constructor(
     readonly status: 400 | 404 | 422 | 429 | 500 | 502 | 503,
     message: string,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; code?: AccountErrorCode },
   ) {
     super(message, options);
+    this.code = options?.code;
     this.name = "AccountError";
   }
+  readonly code: AccountErrorCode | undefined;
 }
 
 const SCENE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/; // same rule as lib/store/scene.ts
@@ -176,6 +186,8 @@ async function labelClaim(
 export async function runAccount(sceneId: string, transcript: unknown): Promise<ClaimResult[]> {
   if (typeof sceneId !== "string" || !SCENE_ID.test(sceneId)) throw new AccountError(400, "Invalid scene id.");
   if (typeof transcript !== "string" || transcript.trim() === "") throw new AccountError(400, "Body must be {\"transcript\": \"...\"} with a non-empty transcript.");
+  const statement = checkStatement(transcript);
+  if (!statement.ok) throw new AccountError(422, statement.reason, { code: "not_a_statement" }); // no model call
   return serialised(sceneId, async () => {
     const manifest = await loadSceneManifest(sceneId);
     const [entities, people, questions, rows] = await Promise.all([
@@ -193,9 +205,23 @@ export async function runAccount(sceneId: string, transcript: unknown): Promise<
     let claims: Claim[];
     try {
       // The scene length lets untimed claims span the scene (never precise) instead of being withheld.
-      claims = await splitClaims(transcript, sceneId, durationS === undefined ? {} : { durationS });
+      const parsed = await splitClaimsDetailed(transcript, sceneId, durationS === undefined ? {} : { durationS });
+      claims = parsed.claims;
+      const reasons = parsed.rejected.map((r) => `#${r.index + 1}: ${r.reason}`);
+      if (reasons.length > 0) console.warn(`[account] scene ${sceneId}: rejected ${reasons.length} extracted claim(s): ${reasons.join("; ")}`);
+      // No verifiable claim: an error, not an empty account. Nothing is written, so the stored claims and
+      // results (and any agent work on them) stay as they were.
+      if (claims.length === 0)
+        throw new AccountError(
+          422,
+          reasons.length > 0
+            ? `The model proposed ${reasons.length} claim(s), but none passed validation (rejected: ${reasons.join("; ")}). Rephrase using the people and objects as you would name them.`
+            : "No verifiable claims were extracted from the statement (the model proposed none). Describe concrete events: who or what moved, stopped, touched or dodged.",
+          { code: reasons.length > 0 ? "claims_rejected" : "no_claims_proposed" },
+        );
     } catch (e) {
-      if (e instanceof ClaimExtractionError) throw new AccountError(502, `Claim extraction failed: ${e.message}`, { cause: e });
+      if (e instanceof ClaimOutputError) throw new AccountError(502, `The model's response could not be read (tried twice): ${e.message}. Try again.`, { cause: e, code: "model_output_invalid" });
+      if (e instanceof ClaimExtractionError) throw new AccountError(502, `Claim extraction failed: ${e.message}`, { cause: e, code: "model_unavailable" });
       throw e;
     }
 

@@ -3,7 +3,7 @@
 /** Routes that wear the cinematic shell (nav, grain, glow). Other pages (/phone, /label) keep their own look. */
 export function isSitePath(pathname: string): boolean {
   if (pathname === "/") return true;
-  return ["/capture", "/board", "/proof", "/results"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  return ["/new", "/capture", "/board", "/proof", "/results"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 /** Which nav tab a path belongs to, for the sliding active pill. */
