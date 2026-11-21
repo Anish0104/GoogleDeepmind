@@ -304,7 +304,7 @@ export function NewInvestigation({ questionSets }: { questionSets: string[] }) {
                       ) : (
                         <input
                           type="file"
-                          accept="video/*"
+                          accept="video/*,.mov,.mp4,.webm"
                           aria-label={`Video for CAM ${c}`}
                           disabled={f.state === "uploading"}
                           onChange={(e) => setCam(c, { file: e.target.files?.[0], state: "idle", error: undefined })}

@@ -4,11 +4,8 @@
 import type { CameraId, ClaimResult, RunStatus, Verdict } from "@/lib/types";
 import { proofHref } from "@/components/Board";
 
-/**
- * Whole-file upload, one video per camera (multipart: sceneId, camera, file). Dev 1 is adding it
- * to /api/ingest; change only this line if the final route differs.
- */
-export const UPLOAD_URL = "/api/ingest";
+/** Dev 1's whole-file upload: one video per camera (multipart: sceneId, camera, file), max 500 MB. */
+export const UPLOAD_URL = "/api/ingest/file";
 
 export const ALL_CAMERAS: CameraId[] = ["A", "B", "C", "D"];
 
