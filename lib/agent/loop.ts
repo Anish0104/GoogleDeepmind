@@ -1,7 +1,7 @@
 // OWNER: Dev 3. The loop both agents share: at most LIMITS.AGENT_MAX_CHECKS checks, then a forced stop.
 // After each result: verdict() recomputes; the Skeptic's result also goes through enforceDowngradeOnly().
 // Agents choose clips; only verdict() sets a label. Every dependency is injected so tests use fakes.
-import { LIMITS } from "@/lib/config";
+import { LIMITS, THRESHOLDS } from "@/lib/config";
 import { assertBudget, BudgetExceededError } from "@/lib/cost";
 import { enforceDowngradeOnly, verdict } from "@/lib/inference/verdict";
 import { checkWindow, type CheckWindowArgs } from "@/lib/perception/checkWindow";
@@ -224,6 +224,7 @@ type Applied = { ok: true; result: ClaimResult } | { ok: false; detail: string }
 
 /**
  * Adds the evidence, recomputes the label with verdict(), and records any attempted change.
+ * The audit is replaced only when the new clip is usable (visible >= THRESHOLDS.USABLE).
  * Investigator: the new label applies and the loop writes the LabelChange.
  * Skeptic: enforceDowngradeOnly()'s ClaimResult is taken as is, including the history entry it writes
  * (blocked or not); the loop adds no second entry. If it ever returns anything but the old label or
@@ -238,9 +239,12 @@ function applyEvidence(
   args: InspectWindowArgs,
   d: AgentDeps,
 ): Applied {
-  const withEvidence: ClaimResult = { ...prev, evidence: [...prev.evidence, evidence], audit: cited };
+  // The new clip's audit replaces the old one only if the clip was usable: a blocked clip still adds its
+  // evidence but must not wipe out an audit from a clip that actually saw something.
+  const audit = evidence.visible >= THRESHOLDS.USABLE ? cited : prev.audit;
+  const withEvidence: ClaimResult = { ...prev, evidence: [...prev.evidence, evidence], audit };
   // Excluded cameras never count toward a label, even if their evidence is stored in the result.
-  const next = d.verdict(withoutExcluded(withEvidence.evidence, d.start.manifest.excludedCameras), claim, cited);
+  const next = d.verdict(withoutExcluded(withEvidence.evidence, d.start.manifest.excludedCameras), claim, audit);
   if (next === prev.verdict) return { ok: true, result: withEvidence };
 
   const reason = `${args.reason} (clip ${evidence.clipId})`;
