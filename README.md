@@ -11,6 +11,7 @@ Commits dated before **10:30 AM ET, Nov 21, 2026** contain **scaffolding only**:
 ## Quick start
 
 ```bash
+# Requires Node 22+ (nvm install 22 && nvm use)
 pnpm install
 cp .env.local.example .env.local   # add your GEMINI_API_KEY
 pnpm dev:https                     # phones need HTTPS for the camera
