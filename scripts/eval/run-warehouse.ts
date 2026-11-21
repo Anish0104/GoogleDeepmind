@@ -3,7 +3,8 @@
 //   1. clone the perceived scene to <sceneId>__<account> (perception outputs copied, no re-perception);
 //   2. Dev 2's runAccount() on the clone: transcript -> claims -> labels (the "before agents" labels);
 //   3. our agents handler (POST /api/scene/[id]/agents logic; respects AGENT_MODE);
-//   4. score every statement against the answer key, before and after agents.
+//   4. score every statement against the answer key, before and after agents, with the grid near each moment
+//      for the question the claim grounds to (why a claim was Insufficient), and list extra claims.
 // Writes data/eval/results/warehouse-eval.{json,md}; `pnpm tsx scripts/eval/run-warehouse.ts --doc` also copies
 // the markdown to docs/proof/warehouse-eval.md. Usage: pnpm tsx scripts/eval/run-warehouse.ts [--doc] <sceneId…>
 import { existsSync } from "node:fs";
@@ -11,9 +12,11 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { DATA_DIR } from "@/lib/config";
-import type { Claim, ClaimResult } from "@/lib/types";
+import type { SceneRegistry } from "@/lib/truth/grounding";
+import type { CameraId, Claim, ClaimResult, GridRow, SceneManifest } from "@/lib/types";
 import type { EvalCase } from "@/scripts/eval/accounts";
 import { cloneScene } from "@/scripts/eval/clone";
+import { gridDetail } from "@/scripts/eval/grid";
 import { casePath } from "@/scripts/eval/gen-accounts";
 import { formatMarkdown, scoreAccount, type ClaimLabel, type ScoredAccount, type WarehouseReport } from "@/scripts/eval/score";
 
@@ -25,6 +28,8 @@ export interface WarehouseDeps {
   runAgents: (sceneId: string) => Promise<{ status: number; body: unknown }>;
   loadClaims: (sceneId: string) => Promise<Claim[]>;
   loadResults: (sceneId: string) => Promise<ClaimResult[]>;
+  /** Why the claim got its label: the grid near the moment for the question it grounds to (scripts/eval/grid.ts). */
+  explain: (sceneId: string, claim: Claim, moment: [number, number]) => Promise<string | null>;
 }
 
 export interface WarehouseOptions {
@@ -36,18 +41,65 @@ export interface WarehouseOptions {
 
 /** The real steps. Imported lazily so a test can run without loading the model clients. */
 async function realDeps(dataDir: string): Promise<WarehouseDeps> {
-  const [{ runAccount }, { handleAgentsRun }, { loadClaims }, { loadResults }] = await Promise.all([
+  const [{ runAccount }, { registeredExclusivePairs }, { handleAgentsRun }, { loadClaims }, { loadResults }] = await Promise.all([
     import("@/lib/truth/account"),
+    import("@/lib/truth/exclusive"),
     import("@/lib/api/handlers"),
     import("@/lib/pipeline/run"),
     import("@/lib/store/scene"),
   ]);
+  // The clone's grid, registry and included cameras, read once per clone.
+  const scenes = new Map<string, Promise<{ rows: GridRow[]; registry: SceneRegistry; included: CameraId[] }>>();
+  const sceneFiles = (sceneId: string) => {
+    let p = scenes.get(sceneId);
+    if (!p) {
+      const dir = path.resolve(dataDir, "scenes", sceneId);
+      const json = async (f: string): Promise<unknown> => {
+        try {
+          return JSON.parse(await readFile(path.join(dir, f), "utf8")) as unknown;
+        } catch {
+          return undefined;
+        }
+      };
+      p = (async () => {
+        const text = await readFile(path.join(dir, "grid.jsonl"), "utf8").catch(() => "");
+        const rows = text
+          .split("\n")
+          .filter((l) => l.trim())
+          .flatMap((l) => {
+            try {
+              return [JSON.parse(l) as GridRow];
+            } catch {
+              return [];
+            }
+          });
+        const manifest = (await json("manifest.json")) as SceneManifest | undefined;
+        const included = (manifest?.cameras ?? []).filter((c) => !manifest!.excludedCameras.includes(c));
+        return {
+          rows,
+          registry: {
+            entities: await json("entities.json"),
+            people: await json("people.json"),
+            questions: await json("questions.json"),
+            exclusive: registeredExclusivePairs(),
+          },
+          included,
+        };
+      })();
+      scenes.set(sceneId, p);
+    }
+    return p;
+  };
   return {
     clone: (src, dst) => cloneScene(src, dst, dataDir),
     runAccount: (sceneId, transcript) => runAccount(sceneId, transcript),
     runAgents: (sceneId) => handleAgentsRun(sceneId),
     loadClaims,
     loadResults,
+    explain: async (sceneId, claim, moment) => {
+      const f = await sceneFiles(sceneId);
+      return gridDetail(claim, moment, f.rows, f.included, f.registry);
+    },
   };
 }
 
@@ -93,8 +145,16 @@ export async function runWarehouse(sceneIds: string[], opts: WarehouseOptions = 
           text: cl.text,
           before: (beforeBy.get(cl.id) ?? afterBy.get(cl.id))!,
           after: (afterBy.get(cl.id) ?? beforeBy.get(cl.id))!,
+          object: cl.object,
+          action: cl.action,
         }));
-      accounts.push({ name: account.name, ...scoreAccount(sceneId, account, labels) });
+      const scored = scoreAccount(sceneId, account, labels);
+      const claimById = new Map(claims.map((cl) => [cl.id, cl]));
+      for (const [i, row] of scored.rows.entries()) {
+        const cl = row.claimId ? claimById.get(row.claimId) : undefined;
+        if (cl) row.grid = await deps.explain(cloneId, cl, account.statements[i]!.moment);
+      }
+      accounts.push({ name: account.name, ...scored });
     }
     report.scenes.push({ sceneId, accounts });
   }

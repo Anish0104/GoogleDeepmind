@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CameraId } from "@/lib/types";
+import { QUESTION_SET_ENTITIES, QUESTION_SET_PEOPLE, SDG_NEARMISS_QUESTIONS } from "@/lib/perception/questionSets";
+import { parseClaimsResponse, type ClaimWire } from "@/lib/truth/claims";
+import { resolveGrounding } from "@/lib/truth/grounding";
 import { buildCase, transcriptOf, workerVisible, type EvalCase, type Statement } from "@/scripts/eval/accounts";
 import { readTruth } from "@/scripts/eval/truth";
 import { fakeTruth } from "@/scripts/eval/fixtures";
@@ -46,11 +49,11 @@ describe("buildCase: contact scene", () => {
 
   it("true account: every statement true, with the right wording", () => {
     expect(Object.fromEntries(Object.values(t).map((s) => [s.kind, [s.text, s.truth]]))).toEqual({
-      contact: ["The forklift hit me.", true],
-      dodge: ["I got out of the way before it reached me.", true], // 2.3 < 3.233
-      stop: ["The forklift didn't stop before it reached me.", true], // never stopped
-      moving: ["It kept moving the whole time.", true],
-      time: ["It hit me about 3 seconds in.", true], // round(3.167)
+      contact: ["The forklift was touching the worker.", true],
+      dodge: ["The worker was dodging.", true], // 2.3 < 3.233
+      stop: ["At 3 seconds in, the forklift was moving.", true], // never stopped
+      moving: ["The forklift was moving during the scene.", true],
+      time: ["The forklift was touching the worker about 3 seconds in.", true], // round(3.167)
     });
   });
 
@@ -91,7 +94,7 @@ describe("buildCase: contact scene", () => {
     const m = c.accounts[1]!;
     expect(m.transcript).toBe(transcriptOf(m.statements));
     expect(c.accounts[0]!.transcript).toBe(
-      "The forklift hit me. I got out of the way before it reached me. The forklift didn't stop before it reached me. It kept moving the whole time. It hit me about 3 seconds in.",
+      "The forklift was touching the worker. The worker was dodging. At 3 seconds in, the forklift was moving. The forklift was moving during the scene. The forklift was touching the worker about 3 seconds in.",
     );
   });
 });
@@ -99,11 +102,11 @@ describe("buildCase: contact scene", () => {
 describe("buildCase: near miss with a hidden-worker moment", () => {
   it("true account: near-miss wording, time from minGapT", () => {
     const t = by(buildCase(nearTruth, ALL), "true");
-    expect(t.contact!.text).toBe("It never touched me.");
-    expect(t.dodge!.text).toBe("I didn't get out of the way before it reached me.");
-    expect(t.stop!.text).toBe("The forklift stopped before it reached me."); // 5.5 < 6.1
-    expect(t.moving!.text).toBe("It stopped at some point.");
-    expect(t.time!.text).toBe("It came closest about 6 seconds in.");
+    expect(t.contact!.text).toBe("The forklift never touched the worker.");
+    expect(t.dodge!.text).toBe("The worker did not dodge.");
+    expect(t.stop!.text).toBe("At 6 seconds in, the forklift was stopped."); // 5.5 < 6.1
+    expect(t.moving!.text).toBe("The forklift was stopped during the scene.");
+    expect(t.time!.text).toBe("The forklift was near the worker about 6 seconds in.");
     expect(t.contact!.moment).toEqual([5.1, 7.1]);
   });
 
@@ -130,8 +133,8 @@ describe("buildCase: missing fields", () => {
     const t = fakeTruth({ sceneId: "fk_old", outcome: "contact", contact: [3, 3.3], minGapT: 3.1, omit: ["forkliftStopT", "dodgeStartT", "near"] });
     const c = buildCase(t, ALL);
     const s = by(c, "true");
-    expect(s.moving!.text).toBe("It kept moving the whole time.");
-    expect(s.stop!.text).toBe("The forklift didn't stop before it reached me.");
+    expect(s.moving!.text).toBe("The forklift was moving during the scene.");
+    expect(s.stop!.text).toBe("At 3 seconds in, the forklift was moving.");
     expect(s.dodge).toBeUndefined();
     expect(c.skipped).toEqual([{ kind: "dodge", reason: "answer key has no summary.dodgeStartT" }]);
   });
@@ -142,5 +145,34 @@ describe("buildCase: missing fields", () => {
     expect(c.accounts[0]!.statements.map((s) => s.kind)).toEqual(["moving"]);
     expect(c.skipped.map((x) => x.kind)).toEqual(["contact", "dodge", "stop", "time"]);
     expect(c.accounts[1]!.flipped).toEqual(["moving"]); // only one flippable statement
+  });
+
+  it("every positive SDG state wording passes checkFidelity() and grounds to SDG_NEARMISS_QUESTIONS", () => {
+    const c = buildCase(contactTruth, ALL);
+    const transcript = `${c.accounts[0]!.transcript} The forklift was near the worker about 6 seconds in.`;
+    const wires: ClaimWire[] = [
+      { text: "The forklift was touching the worker.", actor: "", object: "the forklift", actionKind: "state", stateValue: "touching the worker", timeKind: "none", hedged: false },
+      { text: "The worker was dodging.", actor: "", object: "the worker", actionKind: "state", stateValue: "dodging", timeKind: "none", hedged: false },
+      { text: "At 3 seconds in, the forklift was moving.", actor: "", object: "the forklift", actionKind: "state", stateValue: "moving", timeKind: "exact", t: 3, hedged: false },
+      { text: "The forklift was moving during the scene.", actor: "", object: "the forklift", actionKind: "state", stateValue: "moving", timeKind: "none", hedged: false },
+      { text: "The forklift was near the worker about 6 seconds in.", actor: "", object: "the forklift", actionKind: "state", stateValue: "near the worker", timeKind: "approx", t: 6, hedged: false },
+    ];
+    const parsed = parseClaimsResponse({ claims: wires }, transcript, "fk_contact", { durationS: 10 });
+    expect(parsed.rejected).toEqual([]);
+    expect(parsed.claims).toHaveLength(5);
+
+    const registry = {
+      entities: QUESTION_SET_ENTITIES["sdg-nearmiss"],
+      people: QUESTION_SET_PEOPLE["sdg-nearmiss"],
+      questions: SDG_NEARMISS_QUESTIONS,
+    };
+    const groundedIds = parsed.claims.map((cl) => resolveGrounding(cl, registry).target?.questionId);
+    expect(groundedIds).toEqual([
+      "forklift:state:touching_worker",
+      "worker:state:dodging",
+      "forklift:state:moving",
+      "forklift:state:moving",
+      "forklift:state:near_worker",
+    ]);
   });
 });

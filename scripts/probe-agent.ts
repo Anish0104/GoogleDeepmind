@@ -90,20 +90,32 @@ function printRaw(label: string, x: unknown) {
   if (sdkHttpResponse) console.log(`(sdkHttpResponse omitted; keys: ${Object.keys(sdkHttpResponse).join(", ")})`);
 }
 
+function managedUsd(inputTokens: number, outputTokens: number): number {
+  const num = (v: string | undefined) => {
+    const n = v === undefined || v.trim() === "" ? NaN : Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const pin = num(process.env.MANAGED_PRICE_IN);
+  const pout = num(process.env.MANAGED_PRICE_OUT);
+  if (pin === null || pout === null) return 0;
+  return (inputTokens * pin + outputTokens * pout) / 1_000_000;
+}
+
 async function logUsage(i: Interaction, sceneId: string) {
   const u = i.usage;
-  // TODO: price managed-agent tokens once the event pricing is confirmed; logged as $0 until then.
+  const inputTokens = u?.total_input_tokens ?? 0;
+  const outputTokens = (u?.total_output_tokens ?? 0) + (u?.total_thought_tokens ?? 0);
+  const usd = managedUsd(inputTokens, outputTokens);
   await appendCostRecord({
     at: new Date().toISOString(),
     model: `${MODELS.AGENT_ID}${MODELS.AGENT_MODEL ? `/${MODELS.AGENT_MODEL}` : ""}`,
     purpose: "probe-agent",
-    inputTokens: u?.total_input_tokens ?? 0,
-    outputTokens: (u?.total_output_tokens ?? 0) + (u?.total_thought_tokens ?? 0),
-    usd: 0,
+    inputTokens,
+    outputTokens,
+    usd,
     sceneId,
   });
-  console.log(`\nUsage: ${JSON.stringify(u ?? null)}`);
-  console.log("(Cost log: tokens recorded with usd 0; managed-agent pricing not set yet.)");
+  console.log(`\nUsage: ${JSON.stringify(u ?? null)} (usd=${usd.toFixed(6)})`);
 }
 
 /** Waits while the background interaction is queued or running. Cancels on timeout. */

@@ -114,6 +114,7 @@ describe("runWarehouse", () => {
     const claimsBy = new Map<string, Claim[]>();
     const resultsBy = new Map<string, ClaimResult[]>();
     const calls: string[] = [];
+    const explained: { sceneId: string; claimId: string; moment: [number, number] }[] = [];
     const deps: WarehouseDeps = {
       clone: (src, dst) => {
         calls.push(`clone ${src} -> ${dst}`);
@@ -136,6 +137,10 @@ describe("runWarehouse", () => {
       },
       loadClaims: async (sceneId) => claimsBy.get(sceneId) ?? [],
       loadResults: async (sceneId) => resultsBy.get(sceneId) ?? [],
+      explain: async (sceneId, claim, moment) => {
+        explained.push({ sceneId, claimId: claim.id, moment });
+        return `fake grid for ${claim.id}`;
+      },
     };
 
     const report = await runWarehouse(["wh1"], { dataDir: dir, deps, now: () => new Date("2026-11-21T20:00:00.000Z"), agentMode: "standin" });
@@ -145,6 +150,10 @@ describe("runWarehouse", () => {
     expect(rows).toHaveLength(10);
     expect(rows.every((r) => r.before === "Insufficient" && r.outcomeBefore === "coverage-loss")).toBe(true);
     expect(rows.every((r) => r.outcome === "correct")).toBe(true);
+    // Every matched statement gets its grid explanation, from its own clone and moment.
+    expect(rows.every((r) => r.grid === `fake grid for ${r.claimId}`)).toBe(true);
+    expect(explained).toHaveLength(10);
+    expect(explained[0]).toMatchObject({ sceneId: "wh1__true", claimId: "c0", moment: [2.167, 4.467] });
 
     const md = await readFile(path.join(dir, "eval", "results", "warehouse-eval.md"), "utf8");
     expect(md).toMatch(/Critical errors \(target 0\) \| 0 of 10/);
@@ -164,6 +173,7 @@ describe("runWarehouse", () => {
       runAgents: async () => ({ status: 200, body: {} }),
       loadClaims: async () => [],
       loadResults: async () => [],
+      explain: async () => null,
     };
     const report = await runWarehouse(["wh1"], { dataDir: dir, deps, agentMode: "standin" });
     expect(report.scenes[0]!.accounts.map((a) => a.error)).toEqual(["account: Budget hard stop reached", "account: Budget hard stop reached"]);
