@@ -1,51 +1,65 @@
-// OWNER: Dev 4. The agent trace panel: each Investigator/Skeptic step, in order.
-// In replay it reads agent-steps.jsonl; live it will read the same shape off Dev 3's stream.
-import type { AgentStep, InspectWindowArgs, StopArgs } from "@/lib/types";
+// OWNER: Dev 4. The agent trace card: each Investigator/Skeptic step that has happened by
+// the replay clock. The newest reason types out. In replay it reads agent-steps.jsonl;
+// live it will read the same shape off Dev 3's stream.
+import { type TimedStep } from "@/components/replay/timeline";
+import { AGENT_COLOR } from "./verdictStyle";
 
-function isInspect(args: InspectWindowArgs | StopArgs): args is InspectWindowArgs {
-  return "camera_id" in args;
-}
-
-function stepLine(step: AgentStep): string {
-  if (step.action === "inspect_window" && isInspect(step.args)) {
-    return `inspect CAM ${step.args.camera_id} ${step.args.start_s}–${step.args.end_s}s (${step.args.crop})`;
-  }
-  if (step.action === "rejected" && isInspect(step.args)) {
-    return `rejected CAM ${step.args.camera_id} ${step.args.start_s}–${step.args.end_s}s`;
-  }
-  return "stop";
-}
-
-const DOT: Record<AgentStep["action"], string> = {
-  inspect_window: "bg-sky-500",
-  rejected: "bg-red-400",
-  stop: "bg-neutral-400",
+const DOT: Record<TimedStep["step"]["action"], string> = {
+  inspect_window: "#7CC7FF",
+  rejected: "#FF5A47",
+  stop: "#7D838C",
 };
 
-export function AgentTrace({ steps }: { steps: AgentStep[] }) {
-  if (steps.length === 0) {
-    return <p className="text-sm text-neutral-400">No agent ran on this scene.</p>;
-  }
+export function AgentTrace({ steps, shown, T, end }: { steps: TimedStep[]; shown: TimedStep[]; T: number; end: number }) {
   return (
-    <ol className="space-y-2">
-      {steps.map((step, i) => (
-        <li key={i} className="flex gap-2 text-xs">
-          <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${DOT[step.action]}`} />
-          <div>
-            <div className="text-neutral-700">
-              <span className="font-mono text-neutral-400">{step.agent}</span>{" "}
-              <span className="font-mono text-neutral-400">{step.claimId}#{step.n}</span>{" "}
-              {stepLine(step)}
-            </div>
-            <div className="text-neutral-500">
-              {step.action === "rejected" ? step.rejectionReason : step.args.reason}
-            </div>
-            <div className="font-mono text-neutral-400">
-              {step.tokens} tok &middot; ${step.costUsd.toFixed(2)} &middot; {step.latencyMs}ms
-            </div>
-          </div>
-        </li>
-      ))}
-    </ol>
+    <div className="rs-card" style={{ borderRadius: 16, padding: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 500 }}>Agent trace</h2>
+        <span className="rs-mono" style={{ fontSize: 12, color: "#7D838C" }}>
+          {shown.length} / {steps.length} steps
+        </span>
+      </div>
+      {steps.length === 0 ? (
+        <p style={{ margin: "14px 0 0", fontSize: 13, color: "#7D838C", lineHeight: 1.5 }}>No agent ran on this scene.</p>
+      ) : shown.length === 0 ? (
+        <p style={{ margin: "14px 0 0", fontSize: 13, color: "#7D838C", lineHeight: 1.5 }}>
+          Agents start after the footage pass. They pick extra clips to check, two follow-ups per claim.
+        </p>
+      ) : null}
+      <ol style={{ listStyle: "none", margin: "14px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+        {shown.map((s, i) => {
+          const last = i === shown.length - 1;
+          const n = last ? Math.floor((T - s.at) * 55) : Infinity;
+          const typing = last && n < s.reason.length && T < end;
+          const dot = DOT[s.step.action];
+          return (
+            <li key={s.index} style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr)", gap: 10 }}>
+              <span style={{ marginTop: 5, width: 8, height: 8, borderRadius: "50%", background: dot, boxShadow: `0 0 10px ${dot}` }} />
+              <div style={{ minWidth: 0 }}>
+                <div className="rs-mono" style={{ fontSize: 12, lineHeight: 1.45 }}>
+                  <span style={{ color: AGENT_COLOR[s.step.agent] }}>{s.step.agent}</span>{" "}
+                  <span style={{ color: "#7D838C" }}>
+                    {s.step.claimId}#{s.step.n}
+                  </span>{" "}
+                  <span style={{ color: "#ECE6DA" }}>{s.line}</span>
+                </div>
+                <div style={{ marginTop: 3, fontSize: 13, lineHeight: 1.5, color: "#A9AEB5" }}>
+                  {typing ? s.reason.slice(0, Math.max(0, n)) : s.reason}
+                  {typing && <span className="rs-caret" />}
+                </div>
+                {s.blocked && !typing && (
+                  <div className="rs-mono" style={{ display: "inline-block", marginTop: 6, padding: "2px 8px", border: "1px solid #FF5A47", color: "#FF5A47", fontSize: 11, letterSpacing: "0.16em", borderRadius: 3 }}>
+                    LABEL CHANGE BLOCKED
+                  </div>
+                )}
+                <div className="rs-mono" style={{ marginTop: 4, fontSize: 11, color: "#5E646D" }}>
+                  {s.step.tokens} tok · ${s.step.costUsd.toFixed(2)} · {s.step.latencyMs}ms
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

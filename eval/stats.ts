@@ -94,3 +94,14 @@ export function byOcclusion(items: ClaimEval[]): { natural: ClaimEval[]; planned
     planned: items.filter((i) => i.plannedOcclusion),
   };
 }
+
+/** Accuracy per ground-truth label: among claims truly labelled L, the fraction predicted L. */
+export function accuracyByLabel(items: ClaimEval[]): Record<Verdict, Rate> {
+  const of = (label: Verdict) =>
+    rateWhere(
+      items,
+      (i) => i.truth === label,
+      (i) => i.predicted === label,
+    );
+  return { Supported: of("Supported"), Contradicted: of("Contradicted"), Insufficient: of("Insufficient") };
+}
