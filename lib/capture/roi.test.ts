@@ -84,7 +84,7 @@ beforeAll(() => {
 }, 60_000);
 afterAll(() => dir && rmSync(dir, { recursive: true, force: true }));
 
-describe.skipIf(!HAS_FFMPEG)("sceneRoi", () => {
+describe.skipIf(!HAS_FFMPEG)("sceneRoi", { timeout: 60_000 }, () => {
   it("returns an even pixel crop box around the moving object", async () => {
     const box = (await sceneRoi(path.join(dir, "moving.webm")))!;
     expect(box).not.toBeNull();

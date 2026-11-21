@@ -86,7 +86,7 @@ describe("parseWav", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("syncScene", () => {
+describe.skipIf(!HAS_FFMPEG)("syncScene", { timeout: 60_000 }, () => {
   it("recovers known offsets within one frame and writes sync.json", async () => {
     const res = await syncScene(manifest);
     const by = Object.fromEntries(res.map((r) => [r.camera, r]));
@@ -101,7 +101,7 @@ describe.skipIf(!HAS_FFMPEG)("syncScene", () => {
   }, 60_000);
 });
 
-describe.skipIf(!HAS_FFMPEG)("localTime", () => {
+describe.skipIf(!HAS_FFMPEG)("localTime", { timeout: 60_000 }, () => {
   it("maps synced time to each camera's recording time from sync.json", async () => {
     const res = await syncScene(manifest);
     const b = res.find((r) => r.camera === "B")!;

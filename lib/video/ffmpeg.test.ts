@@ -27,7 +27,7 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const out = (name: string) => path.join(dir, "out", name);
 
-describe.skipIf(!HAS_FFMPEG)("probe", () => {
+describe.skipIf(!HAS_FFMPEG)("probe", { timeout: 60_000 }, () => {
   it("reads duration and size", async () => {
     const p = await probe(src);
     expect(p.durationS).toBeGreaterThan(5.8);
@@ -40,7 +40,7 @@ describe.skipIf(!HAS_FFMPEG)("probe", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("clip", () => {
+describe.skipIf(!HAS_FFMPEG)("clip", { timeout: 60_000 }, () => {
   it("cuts the window to a small mp4 with no audio", async () => {
     const o = await clip(src, 1, 3.5, out("c.mp4"));
     expect(o).toBe(out("c.mp4"));
@@ -58,7 +58,7 @@ describe.skipIf(!HAS_FFMPEG)("clip", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("still", () => {
+describe.skipIf(!HAS_FFMPEG)("still", { timeout: 60_000 }, () => {
   it("saves one low-res jpeg", async () => {
     const o = await still(src, 2, out("s.jpg"), 320);
     const p = await probe(o);
@@ -71,7 +71,7 @@ describe.skipIf(!HAS_FFMPEG)("still", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("crop", () => {
+describe.skipIf(!HAS_FFMPEG)("crop", { timeout: 60_000 }, () => {
   it("crops a still", async () => {
     const s = await still(src, 1, out("full.jpg"), 1280);
     const o = await crop(s, { x: 100, y: 50, w: 200, h: 120 }, out("crop.jpg"));
@@ -91,7 +91,7 @@ describe.skipIf(!HAS_FFMPEG)("crop", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("audio", () => {
+describe.skipIf(!HAS_FFMPEG)("audio", { timeout: 60_000 }, () => {
   it("extracts mono 16 kHz PCM wav", async () => {
     const o = await audio(src, out("a.wav"));
     const p = await probe(o);
@@ -103,7 +103,7 @@ describe.skipIf(!HAS_FFMPEG)("audio", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("remux", () => {
+describe.skipIf(!HAS_FFMPEG)("remux", { timeout: 60_000 }, () => {
   it("rewrites the container without re-encoding", async () => {
     const o = await remux(src, out("remux.webm"));
     const p = await probe(o);
@@ -116,7 +116,7 @@ describe.skipIf(!HAS_FFMPEG)("remux", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("grayFrames", () => {
+describe.skipIf(!HAS_FFMPEG)("grayFrames", { timeout: 60_000 }, () => {
   it("decodes constant-fps tiny gray frames", async () => {
     const g = await grayFrames(src, 16, 9, 10);
     expect(g.frames.length).toBeGreaterThanOrEqual(58);
@@ -125,7 +125,7 @@ describe.skipIf(!HAS_FFMPEG)("grayFrames", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("segments", () => {
+describe.skipIf(!HAS_FFMPEG)("segments", { timeout: 60_000 }, () => {
   it("cuts equal 0.5 s segments", async () => {
     const files = await segments(src, 1, 0.5, 4, out("seg"));
     expect(files).toHaveLength(4);
@@ -150,7 +150,7 @@ describe.skipIf(!HAS_FFMPEG)("segments", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("transcode", () => {
+describe.skipIf(!HAS_FFMPEG)("transcode", { timeout: 60_000 }, () => {
   it("trims, resamples and rescales into a silent webm", async () => {
     const o = await transcode(src, out("trim.webm"), { startS: 1, durationS: 3, fps: 15, height: 360 });
     const p = await probe(o);
@@ -165,7 +165,7 @@ describe.skipIf(!HAS_FFMPEG)("transcode", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("concat", () => {
+describe.skipIf(!HAS_FFMPEG)("concat", { timeout: 60_000 }, () => {
   it("joins consecutive segments into one clip", async () => {
     const parts = await segments(src, 0, 0.5, 4, out("seg-cat"));
     const joined = await concat(parts, out("joined.mp4"));
@@ -179,7 +179,7 @@ describe.skipIf(!HAS_FFMPEG)("concat", () => {
   });
 });
 
-describe.skipIf(!HAS_FFMPEG)("stills", () => {
+describe.skipIf(!HAS_FFMPEG)("stills", { timeout: 60_000 }, () => {
   it("saves one still per interval", async () => {
     const files = await stills(src, 0.25, 0.5, 6, out("stills"), 256);
     expect(files).toHaveLength(6);

@@ -9,7 +9,7 @@ import path from "node:path";
 import { z } from "zod";
 import type { CameraId } from "@/lib/types";
 import { DATA_DIR } from "@/lib/config";
-import { createScene, scenePath } from "@/lib/store/scene";
+import { createScene, loadManifest, scenePath, writeJson } from "@/lib/store/scene";
 import { transcode } from "@/lib/video/ffmpeg";
 
 export const ANNOTATION_FPS = 30;
@@ -118,7 +118,8 @@ export async function importAssembly101(input: ImportOptions): Promise<ImportRes
   }
 
   if (!existsSync(scenePath(o.sceneId, "manifest.json"))) {
-    await createScene({ split: "dev", room: "assembly101", cameras: [...cams], excludedCameras: [] }, { id: o.sceneId });
+    // Presynced fixed views; no question set fits assembly yet, so perception still uses scout.
+    await createScene({ split: "dev", room: "assembly101", cameras: [...cams], excludedCameras: [], presynced: true }, { id: o.sceneId });
   }
 
   const files = {} as Record<CameraId, string>;
@@ -130,6 +131,9 @@ export async function importAssembly101(input: ImportOptions): Promise<ImportRes
       height: o.height,
     });
   }
+
+  // createScene() writes durationS 0; the trimmed stretch's length is known, so record it.
+  await writeJson(o.sceneId, "manifest.json", { ...(await loadManifest(o.sceneId)), durationS: o.endS - o.startS });
 
   const coarseFile = path.join(o.annotationsDir, "coarse-annotations", "coarse_labels", `assembly_${o.recording}.txt`);
   const coarse = existsSync(coarseFile) ? toSceneSeconds(parseCoarse(readFileSync(coarseFile, "utf8")), o.startS, o.endS) : [];

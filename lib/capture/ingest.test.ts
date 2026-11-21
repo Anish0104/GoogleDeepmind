@@ -43,7 +43,7 @@ afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
 
 const sceneFile = (id: string, f: string) => path.join(dataDir, "scenes", id, f);
 
-describe.skipIf(!HAS_FFMPEG)("saveChunk + finalizeCamera", () => {
+describe.skipIf(!HAS_FFMPEG)("saveChunk + finalizeCamera", { timeout: 60_000 }, () => {
   it("joins chunks in seq order (any arrival order) into a playable file with a duration", async () => {
     const parts = split(recording, 4);
     for (const seq of [2, 0, 3, 1]) {

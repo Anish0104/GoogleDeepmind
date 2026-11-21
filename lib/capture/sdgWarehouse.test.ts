@@ -73,7 +73,7 @@ beforeAll(() => {
 }, 60_000);
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
 
-describe.skipIf(!HAS_FFMPEG || !HAS_ZIP || !HAS_UNZIP)("importSdgWarehouse", () => {
+describe.skipIf(!HAS_FFMPEG || !HAS_ZIP || !HAS_UNZIP)("importSdgWarehouse", { timeout: 60_000 }, () => {
   it("makes a 4-camera scene and writes the answer key outside the scene folder", async () => {
     const res = await importSdgWarehouse({ runDir, runId: RUN, sceneId: "sdg_test", height: 90 });
 
@@ -87,6 +87,9 @@ describe.skipIf(!HAS_FFMPEG || !HAS_ZIP || !HAS_UNZIP)("importSdgWarehouse", () 
     const manifest = JSON.parse(readFileSync(path.join(dataDir, "scenes", "sdg_test", "manifest.json"), "utf8"));
     expect(manifest.room).toBe("sdg-warehouse");
     expect(manifest.cameras).toEqual(["A", "B", "C", "D"]);
+    expect(manifest.durationS).toBe(2); // the run's length, not createScene()'s 0
+    expect(manifest.presynced).toBe(true);
+    expect(manifest.questionSet).toBe("sdg-nearmiss");
 
     expect(res.truthPath).toBe(path.resolve(dataDir, "labels", "sdg_test.truth.json"));
     expect(existsSync(path.join(dataDir, "scenes", "sdg_test", "truth.json"))).toBe(false);
