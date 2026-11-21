@@ -8,7 +8,8 @@
 //     so affected claims end Insufficient. A file that is present but malformed is a 422.
 //     Unparseable grid.jsonl lines are skipped (a live append can leave a half-written last line).
 //  3. assertBudget() before claim extraction: over budget is 429, an unreadable budget is 503 (fail closed).
-//  4. splitClaims(). A model failure is 502: never reported as an empty account.
+//  4. splitClaims(), with the manifest's durationS when it is > 0 so untimed claims span the scene
+//     (never precise) instead of being withheld. A model failure is 502: never an empty account.
 //  5. Per claim, in order:
 //     - a stored result already changed by an agent (history entry not by "initial") is kept as is;
 //     - resolveGrounding(); no reliable target -> Insufficient, no audit call;
@@ -202,7 +203,8 @@ export async function runAccount(sceneId: string, transcript: unknown): Promise<
     await budgetBeforeExtraction();
     let claims: Claim[];
     try {
-      claims = await splitClaims(transcript, sceneId);
+      // The scene length lets untimed claims span the scene (never precise) instead of being withheld.
+      claims = await splitClaims(transcript, sceneId, durationS === undefined ? {} : { durationS });
     } catch (e) {
       if (e instanceof ClaimExtractionError) throw new AccountError(502, `Claim extraction failed: ${e.message}`, { cause: e });
       throw e;

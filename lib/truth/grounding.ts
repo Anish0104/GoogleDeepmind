@@ -28,6 +28,7 @@ import type { Claim, Question } from "@/lib/types";
 import type { Person } from "@/lib/perception/scout";
 import { indexQuestions, normText, normValue, toZone } from "@/lib/inference/grid";
 import type { EvidenceTarget } from "@/lib/inference/evidence";
+import { withoutArticles } from "@/lib/truth/text";
 
 /** Raw scene files as loaded; each may be missing or malformed. */
 export interface SceneRegistry {
@@ -189,7 +190,9 @@ export function resolveGrounding(claim: Claim, registry: SceneRegistry): ClaimGr
   const of = (p: Question["predicate"]) => qs.filter((q) => q.predicate === p);
 
   const pick = (p: "location" | "heldBy" | "state", value: string): EvidenceTarget | string => {
-    const same = of(p).filter((q) => normValue(p, q.value) === normValue(p, value));
+    // State values compare without articles ("past the entry line" == "past entry line"); others exactly.
+    const canon = (v: string) => (p === "state" ? withoutArticles(v) : normValue(p, v));
+    const same = of(p).filter((q) => canon(q.value) === canon(value));
     if (same.length === 0) return `no ${p} question for "${value}" on ${entity.id}`;
     if (same.length > 1) return `several ${p} questions for "${value}" on ${entity.id}`;
     const alternativeIds = p === "state" ? [] : of(p).filter((q) => q.id !== same[0]!.id).map((q) => q.id);

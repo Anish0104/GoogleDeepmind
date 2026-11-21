@@ -21,8 +21,14 @@
 //   before claim k, no offset         -> [0, end of k], vague
 //   after claim k, no offset          -> [start of k, duration], vague, ONLY if the duration is known
 //   no time                           -> [0, duration], vague, ONLY if the duration is known
-// splitClaims() has no scene duration (no contract provides it), so untimed and open-ended
-// "afterwards" claims are WITHHELD there rather than given an invented window.
+// splitClaims() takes the scene duration as an optional option (the account pipeline passes the
+// manifest's durationS). Without it, untimed and open-ended "afterwards" claims are WITHHELD rather
+// than given an invented window. With it, they span the scene (or anchor to its end) and are never
+// precise; timed windows are clipped to the scene and times after its end are rejected.
+//
+// State values: the state phrase must appear in the transcript in order with every meaningful word,
+// allowing at most one article between words ("past the entry line" ~ "past entry line"); the action
+// is built from the article-free phrase ("state past entry line").
 //
 // Failure policy: invalid input or a failed/malformed model call throws ClaimExtractionError.
 // Individual bad claims are rejected with a reason and the rest are kept (claims are independent).
@@ -38,9 +44,11 @@ import {
   isHedged,
   isQuestion,
   mentions,
+  mentionsAllowingArticles,
   normText,
   stableHash,
   stripArticles,
+  withoutArticles,
 } from "@/lib/truth/text";
 
 export const MAX_TRANSCRIPT_CHARS = 8_000;
@@ -231,7 +239,7 @@ function buildAction(a: RawClaim["action"]): string {
     case "give":
       return `give to ${normText(a.recipient)}`;
     case "state":
-      return `state ${normText(a.value)}`;
+      return `state ${withoutArticles(a.value)}`;
     case "other":
       return normText(a.verb);
   }
@@ -254,7 +262,7 @@ function checkFidelity(c: RawClaim, transcript: string): string | null {
     if (!mentions(transcript, a.recipient, true)) return `recipient "${a.recipient}" is not in the transcript`;
     if (!mentions(c.text, a.recipient)) return `give claim text must name the recipient "${a.recipient}"`;
   }
-  if (a.kind === "state" && !mentions(transcript, a.value, true)) return `state "${a.value}" is not in the transcript`;
+  if (a.kind === "state" && !mentionsAllowingArticles(transcript, a.value, true)) return `state "${a.value}" is not in the transcript`;
   return null;
 }
 
@@ -360,11 +368,16 @@ export function parseClaimsResponse(
 
 /**
  * Splits a witness transcript into atomic Claims via Carbon (MODELS.JUDGE).
- * Empty input returns [] without a model call. Claims with no usable time are withheld (see header).
+ * Empty input returns [] without a model call. Claims with no usable time are withheld unless
+ * `options.durationS` (the scene length, > 0) is given; see the header. The options are optional, so
+ * existing two-argument callers behave exactly as before.
  */
-export async function splitClaims(transcript: string, sceneId: string): Promise<Claim[]> {
+export async function splitClaims(transcript: string, sceneId: string, options: ParseOptions = {}): Promise<Claim[]> {
   if (typeof transcript !== "string") throw new ClaimExtractionError("transcript must be a string");
   if (typeof sceneId !== "string" || !SCENE_ID.test(sceneId)) throw new ClaimExtractionError(`invalid sceneId "${sceneId}"`);
+  const { durationS } = options;
+  if (durationS !== undefined && !(Number.isFinite(durationS) && durationS > 0))
+    throw new ClaimExtractionError(`durationS must be finite and > 0, got ${durationS}`);
   const text = transcript.trim();
   if (text === "") return [];
   if (text.length > MAX_TRANSCRIPT_CHARS)
@@ -376,5 +389,5 @@ export async function splitClaims(transcript: string, sceneId: string): Promise<
   } catch (cause) {
     throw new ClaimExtractionError("claim extraction failed at the model client", { cause });
   }
-  return parseClaimsResponse(response, text, sceneId).claims;
+  return parseClaimsResponse(response, text, sceneId, durationS === undefined ? {} : { durationS }).claims;
 }

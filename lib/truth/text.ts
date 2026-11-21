@@ -24,6 +24,34 @@ export function mentions(haystack: string, phrase: string, inflect = false): boo
   return false;
 }
 
+/** Only true articles: optional filler between the meaningful words of a short phrase. */
+const ARTICLE_WORDS = new Set(["the", "a", "an"]);
+
+/** The phrase's meaningful words: normalised, with the articles "the", "a" and "an" removed. */
+export const withoutArticles = (s: string) => words(s).filter((w) => !ARTICLE_WORDS.has(w)).join(" ");
+
+/**
+ * Like mentions(), but the haystack may have at most ONE article ("the", "a", "an") between consecutive
+ * meaningful words of the phrase ("past entry line" ~ "past the entry line"). Articles in the phrase
+ * itself are ignored. Word order and every meaningful word are kept; no other word may come between,
+ * and no synonyms are accepted.
+ */
+export function mentionsAllowingArticles(haystack: string, phrase: string, inflect = false): boolean {
+  const h = words(haystack);
+  const p = words(withoutArticles(phrase));
+  if (p.length === 0) return false;
+  const eq = (w: string, v: string) =>
+    w === v || (inflect && v.length >= 3 && ["s", "es", "d", "ed", "ing", "ped", "ted", "ned"].some((x) => w === v + x));
+  const matchFrom = (i: number, j: number): boolean => {
+    if (j === p.length) return true;
+    if (i < h.length && eq(h[i]!, p[j]!) && matchFrom(i + 1, j + 1)) return true;
+    // one optional article before the next meaningful word (never before the first)
+    return j > 0 && i + 1 < h.length && ARTICLE_WORDS.has(h[i]!) && eq(h[i + 1]!, p[j]!) && matchFrom(i + 2, j + 1);
+  };
+  for (let i = 0; i < h.length; i++) if (eq(h[i]!, p[0]!) && matchFrom(i + 1, 1)) return true;
+  return false;
+}
+
 /** cyrb53-style 53-bit hash as 14 hex chars; deterministic, no randomness or clock. */
 export function stableHash(s: string): string {
   let h1 = 0xdeadbeef;
