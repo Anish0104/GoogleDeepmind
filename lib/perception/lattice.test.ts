@@ -157,6 +157,25 @@ describe("motion questions on a longer context clip", () => {
     expect(mid.map((p: string) => path.basename(p))).toEqual(["B-0.mp4", "B-0.5.mp4", "B-1.mp4", "B-1.5.mp4"]);
     expect(decide).toHaveBeenCalledTimes(10);
   });
+
+  it("scoring only some slices still builds context clips from every consecutive slice (contextFrom)", async () => {
+    concat.mockClear();
+    const all = [0, 0.5, 1, 1.5, 2, 2.5].map((t) => slice("A", t + 10));
+    const every2 = all.filter((_, i) => i % 2 === 0);
+    await latticeScene(every2, questions, "m4", undefined, { write: false, contextQuestionIds: [motion], contextSlices: 4, contextFrom: all });
+    expect(decide).toHaveBeenCalledTimes(2 * every2.length);
+    const forT11 = concat.mock.calls.map(([inputs]) => inputs.map((p: string) => path.basename(p))).find((n) => n[0] === "A-10.5.mp4")!;
+    expect(forT11).toEqual(["A-10.5.mp4", "A-11.mp4", "A-11.5.mp4", "A-12.mp4"]); // no gaps
+  });
+
+  it("names cached context clips by length, so a 2 s clip is never reused as a 4 s one", async () => {
+    concat.mockClear();
+    const s = [0, 0.5, 1].map((t) => slice("B", t + 20));
+    await latticeScene(s, questions, "m5", undefined, { write: false, contextQuestionIds: [motion], contextSlices: 4 });
+    await latticeScene(s, questions, "m5", undefined, { write: false, contextQuestionIds: [motion], contextSlices: 8 });
+    expect(concat).toHaveBeenCalledTimes(6);
+    expect(new Set(concat.mock.calls.map(([, out]) => path.basename(out as string).split("-")[0])).size).toBe(2);
+  });
 });
 
 describe("latticeScene", () => {

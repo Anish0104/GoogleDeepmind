@@ -15,6 +15,8 @@ export type PerceiveStep = "sync" | "slice" | "views" | "scout" | "lattice";
 export interface PerceiveOptions {
   /** Only send the first N slices per camera to the grid (keeps free-tier tests cheap). */
   maxSlicesPerCamera?: number;
+  /** Score only every Nth slice per camera (context clips still use every slice). Default 1. */
+  sliceStride?: number;
   /**
    * A named question set (see QUESTION_SETS, e.g. "sdg-nearmiss"). Replaces scout entirely: the set's
    * entities, people and questions are written to entities.json, people.json and questions.json, so their
@@ -109,17 +111,18 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
     step("scout", `${entities.length} objects: ${entities.map((e) => e.id).join(", ")}; ${questions.length} questions`);
   }
 
-  const max = opts.maxSlicesPerCamera;
+  const max = opts.maxSlicesPerCamera ?? Infinity;
+  const stride = Math.max(1, Math.floor(opts.sliceStride ?? 1));
   const counts = new Map<string, number>();
-  const used =
-    max === undefined
-      ? slices
-      : slices.filter((s) => {
-          const n = counts.get(s.camera) ?? 0;
-          counts.set(s.camera, n + 1);
-          return n < max;
-        });
+  const used = [...slices]
+    .sort((a, b) => a.t - b.t)
+    .filter((s) => {
+      const n = counts.get(s.camera) ?? 0; // index of this slice within its camera
+      counts.set(s.camera, n + 1);
+      return n % stride === 0 && n / stride < max;
+    });
   const rows = await latticeScene(used, questions, sceneId, opts.onRows, {
+    contextFrom: slices,
     ...(contextQuestionIds && contextQuestionIds.length ? { contextQuestionIds } : {}),
     ...(contextSlices !== undefined ? { contextSlices } : {}),
   });

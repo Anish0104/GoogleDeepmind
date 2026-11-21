@@ -23,6 +23,11 @@ export interface LatticeOptions {
   contextPath?: string;
   /** latticeScene(): slices per context clip, starting one slice before (default 4 = 2 s). */
   contextSlices?: number;
+  /**
+   * latticeScene(): every slice of the scene, to build context clips from when only some slices are
+   * scored (e.g. every other one). Defaults to the scored slices.
+   */
+  contextFrom?: Slice[];
 }
 
 const Answers = z.record(z.string(), z.number().min(0).max(1));
@@ -126,13 +131,14 @@ export async function latticeScene(
   const needsContext = (opts.contextQuestionIds ?? []).length > 0;
   const span = Math.max(2, opts.contextSlices ?? 4);
   const byCamera = new Map<string, Slice[]>();
-  for (const s of [...slices].sort((a, b) => a.t - b.t)) byCamera.set(s.camera, [...(byCamera.get(s.camera) ?? []), s]);
+  for (const s of [...(opts.contextFrom ?? slices)].sort((a, b) => a.t - b.t)) byCamera.set(s.camera, [...(byCamera.get(s.camera) ?? []), s]);
 
   /** Joins the slice before this one and the ones after it into one clip, cached next to the slices. */
   const contextFor = async (s: Slice): Promise<string> => {
     const list = byCamera.get(s.camera)!;
-    const k = list.indexOf(s);
-    const out = path.join(path.dirname(s.path), `ctx-${path.basename(s.path)}`);
+    const k = list.findIndex((x) => x.path === s.path);
+    if (k < 0) throw new Error(`slice ${s.path} is not in contextFrom`);
+    const out = path.join(path.dirname(s.path), `ctx${span}-${path.basename(s.path)}`);
     if (!existsSync(out)) await concat(list.slice(Math.max(0, k - 1), Math.min(list.length, k - 1 + span)).map((x) => x.path), out);
     return out;
   };

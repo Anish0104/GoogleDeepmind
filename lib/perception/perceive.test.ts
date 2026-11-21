@@ -102,6 +102,22 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", { timeout: 60_000 }, () => {
     expect(onStep.mock.calls.find((c) => c[0] === "views")![1]).toMatch(/failed: model down/);
   }, 120_000);
 
+  it("scores every other slice with sliceStride: 2", async () => {
+    const seen: Record<string, number[]> = {};
+    const res = await perceiveScene("pre1", {
+      presynced: true,
+      questionSet: "sdg-nearmiss",
+      sliceStride: 2,
+      onRows: (rows) => (seen[rows[0]!.camera] ??= []).push(rows[0]!.t),
+    });
+    expect(res.slicesUsed).toBe(Math.ceil(res.slices / 2 / 2) * 2); // 2 cameras, every other slice each
+    for (const ts of Object.values(seen)) {
+      const sorted = [...ts].sort((a, b) => a - b);
+      expect(sorted[0]).toBe(0);
+      for (let i = 1; i < sorted.length; i++) expect(sorted[i]! - sorted[i - 1]!).toBeCloseTo(1, 9);
+    }
+  }, 120_000);
+
   it("skips sync for presynced footage: zero offsets, no sync.json", async () => {
     const onStep = vi.fn();
     const res = await perceiveScene("pre1", { maxSlicesPerCamera: 1, presynced: true, onStep });
