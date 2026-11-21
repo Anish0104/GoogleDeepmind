@@ -2,7 +2,7 @@
 //
 // Algorithm (per entity, location questions whose value is a zone A-F; other questions are ignored):
 // 1. Per slice and camera, a camera votes for zone z when its view is usable (lowest pVisible over its
-//    location rows >= USABLE), pYes(z) >= CLEAR, and every other asked zone is below 0.5.
+//    location rows >= USABLE), pYes(z) >= CLEAR, and every other asked zone is below OTHER_ZONE_MAX.
 //    Duplicate rows are collapsed first, so a camera counts once per slice.
 // 2. Per slice: all voting cameras agree -> observed zone (strength = weakest voter's pYes);
 //    voters disagree -> ambiguous; no voters -> unobserved. Cameras are never averaged.
@@ -25,7 +25,6 @@ import { CAMERA_IDS, indexGrid, indexQuestions, toZone } from "@/lib/inference/g
 
 const CONFIRM_SLICES = 2;
 const MAX_UNSEEN_S = 2;
-const OTHER_ZONE_MAX = 0.5;
 
 interface Observation {
   kind: "zone" | "ambiguous" | "none";
@@ -45,7 +44,7 @@ function observe(t: number, byCamera: Map<CameraId, Map<Zone, { pYes: number; pV
     vals.sort((a, b) => b[1].pYes - a[1].pYes);
     const [best, second] = vals;
     if (best![1].pYes < THRESHOLDS.CLEAR) continue;
-    if (second && second[1].pYes >= OTHER_ZONE_MAX) continue;
+    if (second && second[1].pYes >= THRESHOLDS.OTHER_ZONE_MAX) continue;
     votes.push({ camera, zone: best![0], pYes: best![1].pYes });
   }
   if (votes.length === 0) return { kind: "none", t };

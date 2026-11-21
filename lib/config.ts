@@ -15,6 +15,8 @@ export const THRESHOLDS = {
   DECISIVE: 0.9,
   /** A Supported label within this margin of a threshold counts as weak (Skeptic runs). */
   WEAK_SUPPORT_MARGIN: 0.05,
+  /** Zone tracking: a camera votes for a zone only if every other zone's pYes is below this. */
+  OTHER_ZONE_MAX: 0.5,
 } as const;
 
 export const MODELS = {
