@@ -1,8 +1,9 @@
 // OWNER: Dev 3. Reads logs/costs.jsonl and enforces LIMITS.BUDGET_HARD_STOP_USD.
-import { readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { COST_LOG, LIMITS } from "@/lib/config";
+import type { CostRecord } from "@/lib/types";
 
 export interface CostStatus {
   spentUsd: number;
@@ -57,6 +58,13 @@ export async function costStatus(logPath: string = COST_LOG): Promise<CostStatus
 
   const hardStopUsd = LIMITS.BUDGET_HARD_STOP_USD;
   return { spentUsd, hardStopUsd, blocked: spentUsd >= hardStopUsd };
+}
+
+/** Appends one CostRecord to the JSONL cost log (COST_LOG by default), creating the folder if needed. */
+export async function recordCost(record: CostRecord, logPath: string = COST_LOG): Promise<void> {
+  const file = path.resolve(logPath);
+  await mkdir(path.dirname(file), { recursive: true });
+  await appendFile(file, JSON.stringify(record) + "\n", "utf8");
 }
 
 /** Throws BudgetExceededError once spend has reached the hard stop. Call before starting an agent run. */

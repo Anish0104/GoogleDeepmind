@@ -1,6 +1,6 @@
 // OWNER: Dev 3. Validates every agent tool call, then cuts the clip locally and scores it.
 // Reject unless: camera in includedCameras; window inside allowedRangeS, CLIP_MIN_S-CLIP_MAX_S long and
-// overlapping the claim window;
+// sharing at least min(CLIP_MIN_S, claim window length) with the claim window;
 // not already checked; followUpsLeft > 0. A rejection is returned with its reason and still uses a check.
 import { z } from "zod";
 import { LIMITS } from "@/lib/config";
@@ -31,7 +31,7 @@ const fmt = (w: [number, number]) => `[${w[0]}, ${w[1]}] s`;
 
 /**
  * Checks the window's own rules only: camera included, finite times, inside allowedRangeS,
- * CLIP_MIN_S-CLIP_MAX_S long, overlapping the claim window. Ignores follow-ups and already-checked windows.
+ * CLIP_MIN_S-CLIP_MAX_S long, sharing at least min(CLIP_MIN_S, claim window length) with the claim window. Ignores follow-ups and already-checked windows.
  */
 export function validateWindow(args: InspectWindowArgs, menu: AgentMenu): Validation {
   const { camera_id: camera, start_s: start, end_s: end } = args;
@@ -56,11 +56,13 @@ export function validateWindow(args: InspectWindowArgs, menu: AgentMenu): Valida
         `${LIMITS.CLIP_MIN_S}-${LIMITS.CLIP_MAX_S} s long.`,
     );
   }
-  // The clip may extend into the padding (allowedRangeS) but must share some time with the claim window;
-  // the auditor rejects citations that don't overlap it. Touching an edge is not overlapping.
+  // The clip may extend into the padding (allowedRangeS) but must share at least min(CLIP_MIN_S, claim window
+  // length) with the claim window: 1 s normally, the whole claim window if that is shorter.
   const [c0, c1] = menu.claim.window;
-  if (!(start < c1 - EPS && c0 < end - EPS)) {
-    return reject(`Clip must overlap the claim window ${c0}–${c1} s.`);
+  const overlap = Math.min(end, c1) - Math.max(start, c0);
+  const needed = Math.min(LIMITS.CLIP_MIN_S, c1 - c0);
+  if (!(overlap >= needed - EPS && overlap > 0)) {
+    return reject(`Clip must share at least ${Number(needed.toFixed(3))} s with the claim window ${c0}–${c1} s.`);
   }
   return { ok: true };
 }

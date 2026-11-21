@@ -15,7 +15,7 @@ import type {
   SceneManifest,
   Verdict,
 } from "@/lib/types";
-import { runAgent, type AgentDeps, type TurnInput, type TurnOutput } from "@/lib/agent/loop";
+import { checkedWindowFor, runAgent, type AgentDeps, type TurnInput, type TurnOutput } from "@/lib/agent/loop";
 
 const claim: Claim = {
   id: "c1",
@@ -377,6 +377,78 @@ describe("runAgent", () => {
     expect(out.result.evidence.map((e) => e.camera)).toEqual(["D", "A", "B", "C"]); // stored evidence is kept
   });
 
+  it("stamps every step and the run with deps.mode", async () => {
+    const { run } = setup({ script: [inspect("B", 10, 12), stop()], overrides: { mode: "managed" } });
+    const out = await run();
+    expect(out.mode).toBe("managed");
+    expect(out.steps.map((s) => s.mode)).toEqual(["managed", "managed"]);
+  });
+
+  it("numbers steps from firstStepN when given (a fallback rerun continues the claim's numbering)", async () => {
+    const { deps, run } = setup({ script: [inspect("B", 10, 12), stop()], overrides: { firstStepN: 3 } });
+    const out = await run();
+    expect(out.steps.map((s) => s.n)).toEqual([3, 4]);
+    expect(deps.logStep.mock.calls.map((c) => c[1].n)).toEqual([3, 4]);
+  });
+
+  it("leaves mode off steps when deps.mode is not set", async () => {
+    const { run } = setup({ script: [stop()] });
+    const out = await run();
+    expect(out.mode).toBeUndefined();
+    expect(out.steps[0]).not.toHaveProperty("mode");
+  });
+
+  it("records an implicit stop from the turn as a stop step marked implicitStop", async () => {
+    const { run } = setup({
+      script: [],
+      overrides: {
+        turn: async () => ({
+          name: "stop",
+          args: { reason: "Camera B shows the mug in zone C." },
+          implicitStop: true,
+          tokens: 10,
+          costUsd: 0,
+          latencyMs: 1,
+        }),
+      },
+    });
+    const out = await run();
+    expect(out.stopReason).toBe("agent");
+    expect(out.steps).toEqual([
+      expect.objectContaining({ action: "stop", implicitStop: true, args: { reason: "Camera B shows the mug in zone C." } }),
+    ]);
+  });
+
+  it("checks only the part of a valid clip inside the claim window, and records both windows", async () => {
+    // claim window [10, 14]; the agent asks A 12-15 (valid: overlaps the claim, inside allowedRangeS [5, 20]).
+    const { deps, run } = setup({ script: [inspect("A", 12, 15), stop()] });
+    const out = await run();
+    expect(deps.checkWindow.mock.calls[0]![0].window).toEqual([12, 14]);
+    expect(out.steps[0]).toMatchObject({
+      action: "inspect_window",
+      args: { camera_id: "A", start_s: 12, end_s: 15 }, // the requested window
+      checkedWindow: [12, 14],
+      result: { window: [12, 14] },
+    });
+    expect(out.result.evidence[0]!.window).toEqual([12, 14]);
+  });
+
+  it("a request already inside the claim window is checked as is", async () => {
+    const { deps, run } = setup({ script: [inspect("B", 10, 12), stop()] });
+    const out = await run();
+    expect(deps.checkWindow.mock.calls[0]![0].window).toEqual([10, 12]);
+    expect(out.steps[0]!.checkedWindow).toEqual([10, 12]);
+  });
+
+  it("a failed check still records the checked window", async () => {
+    const { run } = setup({
+      script: [inspect("B", 13, 16), stop()],
+      overrides: { checkWindow: async () => Promise.reject(new Error("ffmpeg exited 1")) },
+    });
+    const out = await run();
+    expect(out.steps[0]).toMatchObject({ action: "rejected", checkedWindow: [13, 14] });
+  });
+
   it("passes only the menu and its own steps to the agent", async () => {
     const { run, turnInputs } = setup({ script: [stop()] });
     await run();
@@ -602,5 +674,21 @@ describe("runAgent", () => {
       expect(out.result.history[0]?.blocked).toBeUndefined();
       expect(deps.enforceDowngradeOnly).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("checkedWindowFor", () => {
+  it("clamps the requested window to the claim window", () => {
+    expect(checkedWindowFor([22, 26], [21, 24], [18, 27])).toEqual([22, 24]);
+    expect(checkedWindowFor([18.5, 22], [21, 24], [18, 27])).toEqual([21, 22]);
+    expect(checkedWindowFor([21.5, 23.5], [21, 24], [18, 27])).toEqual([21.5, 23.5]);
+  });
+
+  it("widens to 1 s only when the claim window itself is shorter than 1 s, staying inside allowedRangeS", () => {
+    // A claim window of 1 s or more is never widened (validate() now guarantees >= 1 s of overlap with it).
+    expect(checkedWindowFor([23, 26], [21, 24], [18, 27])).toEqual([23, 24]);
+    expect(checkedWindowFor([20, 23], [21, 21.4], [18, 27])).toEqual([20.7, 21.7]); // short claim window
+    expect(checkedWindowFor([20, 23], [21, 21.4], [21, 27])).toEqual([21, 22]); // pushed in at the range start
+    expect(checkedWindowFor([26.8, 28], [26.5, 27], [18, 27])).toEqual([26, 27]); // pushed in at the range end
   });
 });

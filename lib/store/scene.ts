@@ -4,6 +4,7 @@ import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/prom
 import path from "node:path";
 import { z } from "zod";
 import { DATA_DIR } from "@/lib/config";
+import { QUESTION_SETS } from "@/lib/perception/questionSets";
 import type { CameraId, ClaimResult, SceneManifest } from "@/lib/types";
 
 const SCENE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -22,6 +23,9 @@ export const SceneManifestSchema = z.object({
   durationS: z.number().finite().nonnegative(),
   createdAt: z.string(),
   plannedOcclusion: z.boolean(),
+  presynced: z.boolean().optional(),
+  questionSet: z.string().optional(),
+  roi: z.boolean().optional(),
 }) satisfies z.ZodType<SceneManifest>;
 
 // ---------- paths ----------
@@ -142,10 +146,13 @@ function checkCameras(cameras: CameraId[], excluded: CameraId[]): void {
 /** Creates DATA_DIR/scenes/<id>/manifest.json. Refuses to overwrite an existing scene. */
 export async function createScene(
   input: Pick<SceneManifest, "split" | "room" | "cameras" | "excludedCameras"> &
-    Partial<Pick<SceneManifest, "plannedOcclusion">>,
+    Partial<Pick<SceneManifest, "plannedOcclusion" | "presynced" | "questionSet" | "roi">>,
   opts: CreateSceneOptions = {},
 ): Promise<SceneManifest> {
   checkCameras(input.cameras, input.excludedCameras);
+  if (input.questionSet !== undefined && !Object.hasOwn(QUESTION_SETS, input.questionSet)) {
+    throw new Error(`Unknown question set "${input.questionSet}". Known: ${Object.keys(QUESTION_SETS).join(", ")}.`);
+  }
   const now = opts.now ?? new Date();
   const manifest = SceneManifestSchema.parse({
     sceneId: opts.id ?? newSceneId(now),
@@ -157,6 +164,9 @@ export async function createScene(
     durationS: 0,
     createdAt: now.toISOString(),
     plannedOcclusion: input.plannedOcclusion ?? false,
+    ...(input.presynced !== undefined ? { presynced: input.presynced } : {}),
+    ...(input.questionSet !== undefined ? { questionSet: input.questionSet } : {}),
+    ...(input.roi !== undefined ? { roi: input.roi } : {}),
   });
   const full = scenePath(manifest.sceneId, MANIFEST_FILE);
   await mkdir(path.dirname(full), { recursive: true });
@@ -195,6 +205,28 @@ export async function loadResults(sceneId: string): Promise<ClaimResult[]> {
 /** Shape check for an existing results.json: an array of objects with a claimId. */
 const StoredResultsSchema = z.array(z.looseObject({ claimId: z.string() }));
 
+/** results.json as stored ([] if missing), shape-checked. Call inside withLock(full). */
+async function readStoredResults(full: string, label: string): Promise<ClaimResult[]> {
+  let all: ClaimResult[] = [];
+  try {
+    all = await readJsonAt<ClaimResult[]>(full, label);
+  } catch (e) {
+    if (!(e instanceof NotFoundError)) throw e;
+  }
+  // Only the shape is checked (array of { claimId }); entries were written by this store.
+  if (!StoredResultsSchema.safeParse(all).success) {
+    throw new Error(`${label} is not a ClaimResult[]; refusing to overwrite it.`);
+  }
+  return all;
+}
+
+/** Replaces the entry with the same claimId in place, otherwise appends (claim order is preserved). */
+function upsert(all: ClaimResult[], result: ClaimResult): void {
+  const i = all.findIndex((r) => r.claimId === result.claimId);
+  if (i === -1) all.push(result);
+  else all[i] = result;
+}
+
 /**
  * Saves one claim's result into results.json (ClaimResult[]): replaces the entry with the same claimId in
  * place, otherwise appends, so claim order is preserved. Serialised per scene.
@@ -202,20 +234,102 @@ const StoredResultsSchema = z.array(z.looseObject({ claimId: z.string() }));
 export async function saveResult(sceneId: string, result: ClaimResult): Promise<void> {
   const full = scenePath(sceneId, RESULTS_FILE);
   await withLock(full, async () => {
-    const label = `Scene ${sceneId} ${RESULTS_FILE}`;
-    let all: ClaimResult[] = [];
-    try {
-      all = await readJsonAt<ClaimResult[]>(full, label);
-    } catch (e) {
-      if (!(e instanceof NotFoundError)) throw e;
-    }
-    // Only the shape is checked (array of { claimId }); entries were written by saveResult itself.
-    if (!StoredResultsSchema.safeParse(all).success) {
-      throw new Error(`${label} is not a ClaimResult[]; refusing to overwrite it.`);
-    }
-    const i = all.findIndex((r) => r.claimId === result.claimId);
-    if (i === -1) all.push(result);
-    else all[i] = result;
+    const all = await readStoredResults(full, `Scene ${sceneId} ${RESULTS_FILE}`);
+    upsert(all, result);
     await writeJsonAt(full, all);
   });
+}
+
+export interface ConditionalSave {
+  saved: boolean;
+  /** The entry now stored for this claim (the new result if saved), or null if there is none. */
+  current: ClaimResult | null;
+}
+
+/**
+ * Compare-and-save: saves `result` only if the stored entry for its claim still equals `expected` (what the
+ * caller read earlier; null = "no entry yet"). ClaimResult has no version or updatedAt field, so the stored
+ * content itself is the version. The check and the write happen under the same file lock, so of several
+ * writers that read the same entry, exactly one wins; the others get saved: false and the current entry.
+ */
+export async function saveResultIf(sceneId: string, result: ClaimResult, expected: ClaimResult | null): Promise<ConditionalSave> {
+  const full = scenePath(sceneId, RESULTS_FILE);
+  return withLock(full, async () => {
+    const all = await readStoredResults(full, `Scene ${sceneId} ${RESULTS_FILE}`);
+    const current = all.find((r) => r.claimId === result.claimId) ?? null;
+    if (JSON.stringify(current) !== JSON.stringify(expected)) return { saved: false, current };
+    upsert(all, result);
+    await writeJsonAt(full, all);
+    return { saved: true, current: result };
+  });
+}
+
+/** Removes one claim's entry from results.json. Returns whether there was one. Other entries keep their order. */
+export async function removeResult(sceneId: string, claimId: string): Promise<boolean> {
+  const full = scenePath(sceneId, RESULTS_FILE);
+  return withLock(full, async () => {
+    const all = await readStoredResults(full, `Scene ${sceneId} ${RESULTS_FILE}`);
+    const kept = all.filter((r) => r.claimId !== claimId);
+    if (kept.length === all.length) return false;
+    await writeJsonAt(full, kept);
+    return true;
+  });
+}
+
+// ---------- one lock per scene (this process) ----------
+// Every run that changes a scene's labels holds it: the pipeline, the agent routes and Dev 2's runAccount().
+// serialised() waits its turn (runAccount); lockScene() refuses while anything holds or waits (routes -> 409).
+
+interface SceneQueue {
+  tail: Promise<void>;
+  /** Holders plus waiters. */
+  busy: number;
+}
+const sceneQueues = new Map<string, SceneQueue>();
+
+const queueFor = (sceneId: string): SceneQueue => {
+  let q = sceneQueues.get(sceneId);
+  if (!q) sceneQueues.set(sceneId, (q = { tail: Promise.resolve(), busy: 0 }));
+  return q;
+};
+const settle = (sceneId: string, q: SceneQueue) => {
+  q.busy--;
+  if (q.busy === 0 && sceneQueues.get(sceneId) === q) sceneQueues.delete(sceneId);
+};
+
+/** True while any run holds or waits for the scene. */
+export function isSceneLocked(sceneId: string): boolean {
+  return (sceneQueues.get(sceneId)?.busy ?? 0) > 0;
+}
+
+/** Takes the scene without waiting: a release function, or null if any run holds or waits for it. */
+export function lockScene(sceneId: string): (() => void) | null {
+  const q = queueFor(sceneId);
+  if (q.busy > 0) return null;
+  q.busy++;
+  let open!: () => void;
+  q.tail = new Promise<void>((r) => (open = r));
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    settle(sceneId, q);
+    open();
+  };
+}
+
+/** Runs fn when the scene is free, one at a time per scene and in call order; a failure doesn't block the next. */
+export async function serialised<T>(sceneId: string, fn: () => Promise<T>): Promise<T> {
+  const q = queueFor(sceneId);
+  q.busy++;
+  const run = q.tail.then(fn, fn);
+  q.tail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  try {
+    return await run;
+  } finally {
+    settle(sceneId, q);
+  }
 }

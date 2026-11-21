@@ -9,6 +9,7 @@ import { saveResult } from "@/lib/store/scene";
 import { audit } from "@/lib/truth/auditor";
 import type {
   AgentMenu,
+  AgentMode,
   AgentName,
   AgentStep,
   Audit,
@@ -37,6 +38,8 @@ export interface AgentRun {
   result: ClaimResult;
   steps: AgentStep[];
   stopReason: StopReason;
+  /** Which turn function actually ran (set by startAgent; undefined when a caller injects a turn without one). */
+  mode?: AgentMode;
 }
 
 /** What the agent sees each turn: the allowlisted menu and its own earlier steps. Nothing else. */
@@ -53,6 +56,8 @@ export interface TurnOutput {
   tokens: number;
   costUsd: number;
   latencyMs: number;
+  /** The agent ended without calling stop (managed agent "completed"); recorded as a stop marked implicitStop. */
+  implicitStop?: boolean;
 }
 
 export interface AgentDeps {
@@ -69,6 +74,10 @@ export interface AgentDeps {
   logStep: (sceneId: string, step: AgentStep) => Promise<void>;
   saveResult: (sceneId: string, result: ClaimResult) => Promise<void>;
   now: () => Date;
+  /** Stamped on every step and on the run, so it is never hidden which turn function ran. */
+  mode?: AgentMode;
+  /** Number of the first step (default 1). A fallback rerun continues the claim's numbering. */
+  firstStepN?: number;
 }
 
 /** Real implementations. verdict()/enforceDowngradeOnly() are Dev 2's; checkWindow()/audit() are stubs until merged. */
@@ -85,6 +94,31 @@ export const defaultDeps: Omit<AgentDeps, "turn" | "start"> = {
 };
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/**
+ * The window actually checked for a valid inspect_window call: the requested window clamped to the claim
+ * window. validate() guarantees at least min(CLIP_MIN_S, claim window length) of overlap, so the clamp is
+ * CLIP_MIN_S or more unless the claim window itself is shorter; only then is it widened evenly to CLIP_MIN_S
+ * inside allowedRangeS.
+ */
+export function checkedWindowFor(
+  requested: [number, number],
+  claimWindow: [number, number],
+  allowedRangeS: [number, number],
+): [number, number] {
+  const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
+  let start = Math.max(requested[0], claimWindow[0]);
+  let end = Math.min(requested[1], claimWindow[1]);
+  if (claimWindow[1] - claimWindow[0] < LIMITS.CLIP_MIN_S) {
+    const [lo, hi] = allowedRangeS;
+    const mid = (start + end) / 2;
+    start = mid - LIMITS.CLIP_MIN_S / 2;
+    end = mid + LIMITS.CLIP_MIN_S / 2;
+    if (start < lo) [start, end] = [lo, lo + LIMITS.CLIP_MIN_S];
+    if (end > hi) [start, end] = [hi - LIMITS.CLIP_MIN_S, hi];
+  }
+  return [r6(start), r6(end)];
+}
 
 /**
  * Runs one agent on one claim until it stops, follow-ups run out (forced stop), the budget is hit,
@@ -106,7 +140,13 @@ export async function runAgent(
   let stopReason: StopReason | undefined;
 
   const record = async (step: Omit<AgentStep, "agent" | "claimId" | "n">) => {
-    const full: AgentStep = { agent, claimId: claim.id, n: steps.length + 1, ...step };
+    const full: AgentStep = {
+      agent,
+      claimId: claim.id,
+      n: (d.firstStepN ?? 1) + steps.length,
+      ...step,
+      ...(d.mode ? { mode: d.mode } : {}),
+    };
     steps.push(full);
     await d.logStep(sceneId, full);
   };
@@ -160,7 +200,13 @@ export async function runAgent(
 
     if (call.name === "stop") {
       stopReason = "agent";
-      await record({ action: "stop", args: call.args, droppedFields, ...usage });
+      await record({
+        action: "stop",
+        args: call.args,
+        droppedFields,
+        ...(out.implicitStop ? { implicitStop: true } : {}),
+        ...usage,
+      });
       break;
     }
 
@@ -172,13 +218,16 @@ export async function runAgent(
       continue;
     }
 
+    // Our rule: only the part of the clip inside the claim window is checked and audited. The request (and
+    // what consume() marks as checked) is unchanged; the step records both.
+    const checkedWindow = checkedWindowFor([call.args.start_s, call.args.end_s], claim.window, menu.allowedRangeS);
     let evidence: Evidence;
     let cited: Audit;
     try {
       evidence = await d.checkWindow({
         sceneId,
         camera: call.args.camera_id,
-        window: [call.args.start_s, call.args.end_s],
+        window: checkedWindow,
         crop: call.args.crop,
         claim,
         source: agent,
@@ -190,6 +239,7 @@ export async function runAgent(
         action: "rejected",
         args: call.args,
         rejectionReason: `Check failed: ${errMsg(e)}`,
+        checkedWindow,
         droppedFields,
         ...usage,
       });
@@ -205,6 +255,7 @@ export async function runAgent(
         action: "rejected",
         args: call.args,
         rejectionReason: SAFETY_GUARD_REASON,
+        checkedWindow,
         result: evidence,
         droppedFields,
         ...usage,
@@ -213,11 +264,11 @@ export async function runAgent(
     }
     result = applied.result;
     menu = { ...consume(menu, call.args, evidence), currentVerdict: result.verdict };
-    await record({ action: "inspect_window", args: call.args, result: evidence, droppedFields, ...usage });
+    await record({ action: "inspect_window", args: call.args, checkedWindow, result: evidence, droppedFields, ...usage });
   }
 
   await d.saveResult(sceneId, result);
-  return { result, steps, stopReason };
+  return { result, steps, stopReason, ...(d.mode ? { mode: d.mode } : {}) };
 }
 
 type Applied = { ok: true; result: ClaimResult } | { ok: false; detail: string };

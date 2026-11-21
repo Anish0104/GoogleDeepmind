@@ -1,5 +1,6 @@
 // OWNER: Dev 3 (contract keeper). The contract between all four devs.
 // Changes need a quick OK from the group. Copied from the Implementation Plan, section 5.
+import type { QUESTION_SETS } from "@/lib/perception/questionSets";
 
 // ---------- capture ----------
 export type CameraId = "A" | "B" | "C" | "D";
@@ -14,6 +15,9 @@ export interface SceneManifest {
   durationS: number;
   createdAt: string;
   plannedOcclusion: boolean; // from scriptgen, never shown to agents
+  presynced?: boolean; // footage already synchronised (e.g. Assembly101): perceive skips sync, zero offsets
+  questionSet?: keyof typeof QUESTION_SETS; // a fixed question set (e.g. "warehouse") instead of scout's questions
+  roi?: boolean; // crop slices to where things move in each camera
 }
 
 export interface SyncResult {
@@ -115,6 +119,9 @@ export interface ClaimResult {
 // ---------- agents ----------
 export type AgentName = "investigator" | "skeptic";
 
+/** Which turn function actually ran: the Gemini Managed Agent, the stand-in, or the stand-in after a managed failure. */
+export type AgentMode = "managed" | "standin" | "standin-fallback";
+
 export interface AgentMenu {
   agent: AgentName;
   claim: Claim;
@@ -148,10 +155,26 @@ export interface AgentStep {
   args: InspectWindowArgs | StopArgs;
   rejectionReason?: string;
   droppedFields?: string[]; // unknown fields the bridge stripped from the agent's tool call
+  implicitStop?: boolean; // the agent finished without calling stop; the loop recorded a stop for it
+  mode?: AgentMode; // which turn function ran this step
+  checkedWindow?: [number, number]; // the part of the requested clip actually checked (clamped to the claim window)
   result?: Evidence;
   tokens: number;
   costUsd: number;
   latencyMs: number;
+}
+
+// ---------- pipeline ----------
+/** data/scenes/<id>/run.json: progress of the scene pipeline, read by the board's event stream. */
+export interface RunStatus {
+  /** "perceived": the scene run finished (probe + perception); labels come from the account, agents from /agents. */
+  status: "queued" | "running" | "perceived" | "done" | "failed";
+  /** Current stage, or the stage that failed: queued, probe, perceive, stills, perceived. */
+  stage: string;
+  startedAt: string;
+  finishedAt?: string;
+  /** Why it failed: the error message, or "budget" for a budget stop. */
+  error?: string;
 }
 
 // ---------- evaluation ----------
@@ -172,5 +195,6 @@ export interface CostRecord {
   inputTokens: number;
   outputTokens: number;
   usd: number;
+  cachedTokens?: number; // part of inputTokens served from cache (tracked separately)
   sceneId?: string;
 }

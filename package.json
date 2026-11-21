@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "killtest": "tsx scripts/killtests/run.ts",
+    "perceive": "tsx scripts/perceive.ts",
     "scriptgen": "tsx scripts/scriptgen.ts",
     "eval:run": "tsx eval/run.ts",
     "eval:report": "tsx eval/report.ts"

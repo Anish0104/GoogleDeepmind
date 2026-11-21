@@ -62,11 +62,11 @@ describe("sample menu fixture", () => {
 });
 
 describe("buildUserMessage", () => {
-  it("includes the menu as JSON with stills as IDs only", async () => {
+  it("includes the menu as JSON (plus claimWindowS) with stills as IDs only", async () => {
     const menu = await loadMenu();
     const msg = buildUserMessage(menu, []);
-    const json = msg.slice(msg.indexOf("{"), msg.indexOf("\n\nYour earlier steps"));
-    expect(JSON.parse(json)).toEqual(menu);
+    const json = msg.split("\n")[1]!;
+    expect(JSON.parse(json)).toEqual({ ...menu, claimWindowS: menu.claim.window });
     expect(msg).toContain('"still-B-12"');
     expect(msg).toMatch(/Your earlier steps: none/);
     expect(msg).toMatch(/exactly one tool/i);
@@ -77,6 +77,36 @@ describe("buildUserMessage", () => {
     expect(msg).toContain('"clip-B-10"');
     expect(msg).toContain('"supports":0.4');
     expect(msg).not.toMatch(/tokens|costUsd|latencyMs|droppedFields/);
+  });
+
+  it("states the overlap rule and that a clip over the claim window is new evidence", async () => {
+    const msg = buildUserMessage(await loadMenu(), []);
+    expect(msg).toContain(
+      "Your clip must share at least 1 s with claimWindowS. A clip that only touches its start or end is rejected. " +
+        "The padding in allowedRangeS is there so a clip can start a little before or end a little after the claim window while still overlapping it.",
+    );
+    expect(msg).toContain(
+      "The first pass looked at stills only. A clip over the claim window itself is new evidence, even on a camera already used.",
+    );
+  });
+
+  it("a rejected step comes back with the claim window and a valid example on the same camera", async () => {
+    const menu = await loadMenu(); // claim window [10, 14], A [10, 12] already checked
+    const rejected: AgentStep = {
+      ...stepWithEvidence,
+      action: "rejected",
+      args: { camera_id: "B", start_s: 7, end_s: 10, crop: "full", reason: "just before" },
+      result: undefined,
+      rejectionReason: "Clip must share at least 1 s with the claim window 10–14 s.",
+    };
+    const msg = buildUserMessage(menu, [rejected]);
+    const steps = JSON.parse(msg.slice(msg.indexOf("Your earlier steps: ") + 20, msg.lastIndexOf("]") + 1)) as unknown[];
+    expect(steps[0]).toMatchObject({
+      action: "rejected",
+      rejectionReason: "Clip must share at least 1 s with the claim window 10–14 s.",
+      claimWindowS: [10, 14],
+      validExample: { camera_id: "B", start_s: 10, end_s: 14 },
+    });
   });
 
   it("includes rejection reasons so the agent can correct itself", async () => {

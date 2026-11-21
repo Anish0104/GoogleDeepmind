@@ -107,7 +107,8 @@ const audit = vi.fn(async (_c: Claim, e: Evidence): Promise<Audit> => ({
   contradictScore: e.contradicts,
   clipId: e.clipId,
 }));
-const fakes = (model: StandinModel) => ({ model, checkWindow, audit, assertBudget: async () => {} });
+// These tests exercise the stand-in; managed mode has its own tests in tests/managed-turn.test.ts.
+const fakes = (model: StandinModel) => ({ mode: "standin" as const, model, checkWindow, audit, assertBudget: async () => {} });
 const inspectB = { name: "inspect_window", args: { camera_id: "B", start_s: 10, end_s: 13, crop: "full", reason: "side view" } };
 
 describe("refusals (never throw)", () => {
@@ -142,15 +143,15 @@ describe("refusals (never throw)", () => {
     });
   });
 
-  it("refuses managed mode until the Interactions API is wired", async () => {
+  it("refuses with a reason when the managed agent can't be created (no API key) and there is no fallback", async () => {
     await store.saveResult("s1", insufficient());
-    const out = await investigate(claim, "s1", { ...fakes(fakeModel([])), mode: "managed" });
-    expect(out).toMatchObject({ ran: false, reason: expect.stringMatching(/managed/i) });
+    const out = await investigate(claim, "s1", { checkWindow, audit, assertBudget: async () => {}, mode: "managed", fallback: "none" });
+    expect(out).toMatchObject({ ran: false, reason: expect.stringMatching(/model unavailable.*GEMINI_API_KEY.*managed agent/) });
   });
 
   it("refuses with a reason when the stand-in model can't be created (no API key)", async () => {
     await store.saveResult("s1", insufficient());
-    const out = await investigate(claim, "s1", { checkWindow, audit, assertBudget: async () => {} });
+    const out = await investigate(claim, "s1", { checkWindow, audit, assertBudget: async () => {}, mode: "standin" });
     expect(out).toMatchObject({ ran: false, reason: expect.stringMatching(/model unavailable.*GEMINI_API_KEY/) });
   });
 });

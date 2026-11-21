@@ -4,12 +4,12 @@ Owns both Gemini Managed Agents, the bridge they work through, and the platform 
 
 ## You own
 
-Repo config, `lib/types.ts` (contract keeper), `lib/store/`, `lib/cost.ts`, `lib/agent/`, `app/api/scene/start/`, `app/api/scene/[id]/run/`, `app/api/scene/[id]/stream/`, `app/api/investigate/`, `app/api/skeptic/`, `app/api/cost/`, `eval/agents-compare.ts`, `scripts/killtests/g.ts`, `h.ts`.
+Repo config, `lib/types.ts` (contract keeper), `lib/store/`, `lib/cost.ts`, `lib/agent/`, `app/api/scene/start/`, `app/api/scene/[id]/run/`, `app/api/scene/[id]/events/`, `app/api/investigate/`, `app/api/skeptic/`, `app/api/cost/`, `eval/agents-compare.ts`, `scripts/killtests/g.ts`, `h.ts`.
 
 ## Build, in order
 
 1. Scene store (`lib/store/scene.ts`): scene state saved to `data/scenes/<id>/`.
-2. Pipeline runner (`/api/scene/[id]/run`) that calls each dev's functions in order, and the Server-Sent Events stream (`/api/scene/[id]/stream`) for Dev 4's board.
+2. Pipeline runner (`/api/scene/[id]/run`) that calls each dev's functions in order, and the Server-Sent Events stream (`/api/scene/[id]/events`) for Dev 4's board.
 3. Stand-in agent (`lib/agent/standin.ts`): an ordinary model call with the same two tools, so the bridge and the board never wait for the real agent. Works on the free tier.
 4. Bridge (`lib/agent/bridge.ts`): reject unless the camera is included, the window is inside the allowed range and 1-4 s long, not already checked, and follow-ups are left. A rejection still uses a check. Then call Dev 1's `checkWindow()`, Dev 2's auditor and `verdict()`.
 5. Menu builder (`menu.ts`), log (`log.ts`), environment (`environment.ts`), shared loop (`loop.ts`).
