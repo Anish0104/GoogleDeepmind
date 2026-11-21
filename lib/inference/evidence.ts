@@ -25,6 +25,10 @@
 // - unusable runs carry null scores; ungrounded claims give null scores with visible 0.
 // - clipId is a grid reference "grid:<scene>:<camera>:<start>-<end>", not a playable clip. Resolving
 //   it to a real clip belongs to the perception/ingest integration (Dev 1 / Dev 3).
+//
+// evidenceForTarget() skips string grounding and takes an explicitly resolved EvidenceTarget (see
+// lib/truth/grounding.ts); it then applies exactly the same per-camera rules through the same code.
+// evidenceFor() is unchanged for existing callers.
 import type { CameraId, Claim, Evidence, GridRow, Question } from "@/lib/types";
 import { LIMITS, THRESHOLDS } from "@/lib/config";
 import { CAMERA_IDS, indexGrid, indexQuestions, normText, normValue, sliceWindow, toZone, type GridCell } from "@/lib/inference/grid";
@@ -103,13 +107,32 @@ function groundProposition(claim: Claim, qs: Question[]): Proposition | null {
 }
 
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
-const clipRef = (sceneId: string, camera: CameraId, w: [number, number]) => `grid:${sceneId}:${camera}:${fmt(w[0])}-${fmt(w[1])}`;
+
+/** Grid reference for one camera window, "grid:<scene>:<camera>:<start>-<end>". Not a playable clip. */
+export function gridClipId(sceneId: string, camera: CameraId, w: readonly [number, number]): string {
+  return `grid:${sceneId}:${camera}:${fmt(w[0])}-${fmt(w[1])}`;
+}
+const clipRef = gridClipId;
+
+/**
+ * An explicitly resolved target: the claimed question and the questions that are mutually exclusive
+ * with it (other zones of a location, other holders). State targets take no alternatives.
+ */
+export interface EvidenceTarget {
+  questionId: string;
+  alternativeIds: readonly string[];
+}
 
 interface Slice {
   t: number;
   visible: number;
   support: number | null;
   contradiction: number | null; // null when no alternative was asked in this slice
+}
+
+/** One grid slice of one camera for a target: the same values evidence runs are built from. */
+export interface TargetSlice extends Slice {
+  usable: boolean;
 }
 
 /** Group sorted slices into runs of consecutive slices with the same usability. */
@@ -169,6 +192,83 @@ function ungrounded(claim: Claim, cells: GridCell[]): Evidence[] {
   return out;
 }
 
+/** Per-camera slices (cameras in CAMERA_IDS order) for the claimed question and its alternatives. */
+function sliceSeries(claim: Claim, cells: GridCell[], claimedId: string, altIds: ReadonlySet<string>): Map<CameraId, TargetSlice[]> {
+  // Index relevant cells: camera -> t -> questionId -> cell.
+  const grid = new Map<CameraId, Map<number, Map<string, GridCell>>>();
+  for (const c of cells) {
+    if (c.questionId !== claimedId && !altIds.has(c.questionId)) continue;
+    if (!overlaps(sliceWindow(c.t), claim.window)) continue;
+    if (!grid.has(c.camera)) grid.set(c.camera, new Map());
+    const byT = grid.get(c.camera)!;
+    if (!byT.has(c.t)) byT.set(c.t, new Map());
+    byT.get(c.t)!.set(c.questionId, c);
+  }
+
+  const series = new Map<CameraId, TargetSlice[]>();
+  for (const camera of CAMERA_IDS) {
+    const byT = grid.get(camera);
+    if (!byT) continue;
+    const slices = [...byT.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([t, qs]): TargetSlice => {
+        const claimed = qs.get(claimedId);
+        const alts = [...qs.values()].filter((c) => c.questionId !== claimedId);
+        const visible = Math.min(...[...qs.values()].map((c) => c.pVisible));
+        const maxAlt = alts.length > 0 ? Math.max(...alts.map((c) => c.pYes)) : null;
+        const support = claimed ? (maxAlt === null ? claimed.pYes : Math.min(claimed.pYes, 1 - maxAlt)) : null;
+        const contradiction = maxAlt === null ? null : claimed ? Math.min(maxAlt, 1 - claimed.pYes) : maxAlt;
+        return { t, visible, support, contradiction, usable: visible >= THRESHOLDS.USABLE };
+      });
+    series.set(camera, slices);
+  }
+  return series;
+}
+
+/**
+ * Checks a target against the scene's questions. Valid only if the question exists and is not a
+ * "visible" question, and every alternative exists, is distinct, differs from the target, and shares
+ * its entity and predicate; state targets (not known to be exclusive) must have no alternatives.
+ */
+function resolveTarget(target: EvidenceTarget | null, qById: Map<string, Question>): { claimedId: string; altIds: Set<string> } | null {
+  if (!target || typeof target.questionId !== "string" || !Array.isArray(target.alternativeIds)) return null;
+  const q = qById.get(target.questionId);
+  if (!q || q.predicate === "visible") return null;
+  const exclusive = q.predicate === "location" || q.predicate === "heldBy";
+  if (!exclusive && target.alternativeIds.length > 0) return null;
+  const altIds = new Set<string>();
+  for (const id of target.alternativeIds) {
+    const a = qById.get(id);
+    if (!a || id === q.id || altIds.has(id) || a.entityId !== q.entityId || a.predicate !== q.predicate) return null;
+    altIds.add(id);
+  }
+  return { claimedId: q.id, altIds };
+}
+
+/** The slice series evidence is built from, for an explicit target; null if the target is invalid. */
+export function targetSlices(
+  claim: Claim,
+  target: EvidenceTarget | null,
+  rows: GridRow[],
+  questions: Question[],
+): Map<CameraId, TargetSlice[]> | null {
+  const t = resolveTarget(target, indexQuestions(questions));
+  if (!t) return null;
+  return sliceSeries(claim, indexGrid(rows, claim.sceneId).cells, t.claimedId, t.altIds);
+}
+
+/**
+ * Evidence for an explicitly resolved target (e.g. from lib/truth/grounding.ts) instead of grounding
+ * from Claim strings. Same per-camera rules as evidenceFor(). An invalid or null target gives the
+ * ungrounded result: null scores, visibility 0, never support or contradiction.
+ */
+export function evidenceForTarget(claim: Claim, target: EvidenceTarget | null, rows: GridRow[], questions: Question[]): Evidence[] {
+  const { cells } = indexGrid(rows, claim.sceneId);
+  const t = resolveTarget(target, indexQuestions(questions));
+  if (!t) return ungrounded(claim, cells);
+  return evidenceFromSeries(claim, sliceSeries(claim, cells, t.claimedId, t.altIds));
+}
+
 export function evidenceFor(claim: Claim, rows: GridRow[], questions: Question[]): Evidence[] {
   const { cells } = indexGrid(rows, claim.sceneId);
   const qById = indexQuestions(questions);
@@ -182,36 +282,13 @@ export function evidenceFor(claim: Claim, rows: GridRow[], questions: Question[]
   const prop = entity === null ? null : groundProposition(claim, byEntity.get(entity)!);
   if (prop === null) return ungrounded(claim, cells);
 
-  const claimedId = prop.question.id;
   const altIds = new Set(prop.alternatives.map((q) => q.id));
+  return evidenceFromSeries(claim, sliceSeries(claim, cells, prop.question.id, altIds));
+}
 
-  // Index relevant cells: camera -> t -> questionId -> cell.
-  const grid = new Map<CameraId, Map<number, Map<string, GridCell>>>();
-  for (const c of cells) {
-    if (c.questionId !== claimedId && !altIds.has(c.questionId)) continue;
-    if (!overlaps(sliceWindow(c.t), claim.window)) continue;
-    if (!grid.has(c.camera)) grid.set(c.camera, new Map());
-    const byT = grid.get(c.camera)!;
-    if (!byT.has(c.t)) byT.set(c.t, new Map());
-    byT.get(c.t)!.set(c.questionId, c);
-  }
-
+function evidenceFromSeries(claim: Claim, series: Map<CameraId, TargetSlice[]>): Evidence[] {
   const out: Evidence[] = [];
-  for (const camera of CAMERA_IDS) {
-    const byT = grid.get(camera);
-    if (!byT) continue;
-    const slices = [...byT.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([t, qs]): Slice & { usable: boolean } => {
-        const claimed = qs.get(claimedId);
-        const alts = [...qs.values()].filter((c) => c.questionId !== claimedId);
-        const visible = Math.min(...[...qs.values()].map((c) => c.pVisible));
-        const maxAlt = alts.length > 0 ? Math.max(...alts.map((c) => c.pYes)) : null;
-        const support = claimed ? (maxAlt === null ? claimed.pYes : Math.min(claimed.pYes, 1 - maxAlt)) : null;
-        const contradiction = maxAlt === null ? null : claimed ? Math.min(maxAlt, 1 - claimed.pYes) : maxAlt;
-        return { t, visible, support, contradiction, usable: visible >= THRESHOLDS.USABLE };
-      });
-
+  for (const [camera, slices] of series) {
     for (const run of runs(slices)) {
       const window = runWindow(run);
       const usable = run[0]!.usable;

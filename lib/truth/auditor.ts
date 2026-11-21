@@ -14,12 +14,13 @@
 // support score is never turned into a contradiction. No label is ever set here; only verdict() does.
 // Audit.clipId is the cited clipId, unchanged, so the audit stays linked to the evidence it checked.
 import { z } from "zod";
-import type { Audit, Claim, Evidence } from "@/lib/types";
+import type { Audit, CameraId, Claim, Evidence } from "@/lib/types";
 import { LIMITS, THRESHOLDS } from "@/lib/config";
 import { decide, type DecisionQuestion } from "@/lib/gemini/client";
 import { checkWindow } from "@/lib/perception/checkWindow";
 import { CAMERA_IDS } from "@/lib/inference/grid";
 import { overlaps } from "@/lib/inference/window";
+import type { CitationCandidate } from "@/lib/inference/citation";
 import { AuditInputError, AuditResponseError, AuditUnavailableError } from "@/lib/truth/errors";
 
 const EPS = 1e-6;
@@ -53,6 +54,39 @@ export function validateCitation(claim: Claim, cited: Evidence): CitationCheck {
   if (len < LIMITS.CLIP_MIN_S - EPS || len > LIMITS.CLIP_MAX_S + EPS)
     return no(`cited window ${fmtW(w)} is ${Number(len.toFixed(3))} s; clips must be ${LIMITS.CLIP_MIN_S}-${LIMITS.CLIP_MAX_S} s (not truncated)`);
   if (!overlaps(w, cw)) return no(`cited window ${fmtW(w)} does not overlap the claim window ${fmtW(cw)}`);
+  return { ok: true };
+}
+
+/** A window to be audited, possibly before any clip has been cut (no clipId yet). Evidence fits too. */
+export interface CitationRequest {
+  camera: CameraId;
+  window: [number, number];
+  source: Evidence["source"];
+  clipId?: string;
+}
+
+/**
+ * Strict citation check: every validateCitation() rule, plus the window must lie FULLY inside the claim
+ * window (float slack EPS). A clip that runs past the claim would let time outside the claim change the
+ * score, so strict callers (selected citations, clamped agent checks) must reject it. A request with no
+ * clipId yet is checked as if it had one; an explicit blank clipId is still rejected.
+ * validateCitation() and audit() keep their existing, overlap-only behaviour.
+ */
+export function validateCitationWithinClaim(claim: Claim, cited: CitationRequest): CitationCheck {
+  const base = validateCitation(claim, {
+    camera: cited?.camera,
+    window: cited?.window,
+    source: cited?.source,
+    clipId: cited?.clipId === undefined ? "(not cut yet)" : cited.clipId,
+    visible: 0, // not read by validateCitation()
+    supports: null,
+    contradicts: null,
+  } as Evidence);
+  if (!base.ok) return base;
+  const [w0, w1] = cited.window;
+  const [c0, c1] = claim.window;
+  if (w0 < c0 - EPS || w1 > c1 + EPS)
+    return { ok: false, reason: `cited window ${fmtW(cited.window)} must lie inside the claim window ${fmtW(claim.window)}` };
   return { ok: true };
 }
 
@@ -167,4 +201,52 @@ export async function auditWithMedia(claim: Claim, cited: Evidence, media: unkno
     throw new AuditUnavailableError("decide() failed for the cited clip", { cause });
   }
   return scoreAuditDecision(raw, cited);
+}
+
+// ---------- selected citations ----------
+
+const CandidateSchema = z.object({
+  camera: z.enum(["A", "B", "C", "D"]),
+  window: z.tuple([z.number().finite(), z.number().finite()]),
+  clipId: z.string().trim().min(1),
+  goal: z.enum(["support", "contradict"]),
+  sourceEvidenceClipId: z.string().min(1),
+  basis: z.object({
+    slices: z.number().finite(),
+    partialSlices: z.number().finite(),
+    goalSlices: z.number().finite(),
+    minVisible: prob,
+    gridStatistic: prob,
+  }),
+  verified: z.literal(false),
+});
+
+/**
+ * Audits a window chosen by selectCitation() (lib/inference/citation.ts) through the same audit() path.
+ * The candidate carries no support/contradiction score, so the audit input passes null for both
+ * (audit() never reads them) and the window's OBSERVED minimum visibility for the abstain gate. This
+ * input is internal: it is never returned and must not be added to ClaimResult.evidence. The returned
+ * Audit keeps the candidate's own grid clipId, consistent with audit().
+ */
+export async function auditCitation(claim: Claim, candidate: CitationCandidate): Promise<Audit> {
+  const c = CandidateSchema.safeParse(candidate);
+  if (!c.success) throw new AuditInputError(`invalid citation candidate: ${c.error.issues[0]?.message ?? "invalid"}`);
+  // Selected citations must lie fully inside the claim (selectCitation() clamps them); reject anything else.
+  const strict = validateCitationWithinClaim(claim, {
+    camera: c.data.camera,
+    window: [c.data.window[0], c.data.window[1]],
+    source: "initial",
+    clipId: c.data.clipId,
+  });
+  if (!strict.ok) throw new AuditInputError(strict.reason);
+  const input: Evidence = {
+    camera: c.data.camera,
+    window: [c.data.window[0], c.data.window[1]],
+    visible: c.data.basis.minVisible,
+    supports: null,
+    contradicts: null,
+    clipId: c.data.clipId,
+    source: "initial",
+  };
+  return audit(claim, input);
 }
