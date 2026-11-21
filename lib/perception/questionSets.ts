@@ -34,4 +34,33 @@ export const WAREHOUSE_QUESTIONS: Question[] = [
 /** Questions about motion, asked over a ~2 s clip instead of one 0.5 s slice. */
 export const WAREHOUSE_MOTION_QUESTION_IDS = ["forklift:state:stationary"];
 
-export const QUESTION_SETS: Record<string, Question[]> = { warehouse: WAREHOUSE_QUESTIONS };
+/**
+ * NVIDIA SDG-Warehouse forklift-human near miss: open floor (no crossing lines), a forklift drives at a
+ * worker who dodges or is hit. Ids match the answer key in lib/capture/sdgTruth.ts.
+ */
+export const SDG_NEARMISS_QUESTIONS: Question[] = [
+  q("worker", "visible", "yes",
+    "Can you see the worker (the person) in this view? Yes if a clear part of their body is visible; " +
+      "no if they are out of frame or hidden behind the forklift or anything else."),
+  q("forklift", "visible", "yes",
+    "Can you see the forklift in this view? Yes if a clear part of it is visible; no if it is out of frame or hidden."),
+  q("forklift", "state", "near worker",
+    "Is any part of the forklift (body, mast or forks) within about one metre, roughly an arm's length, of the worker? " +
+      "Yes only if they are that close; no if there is clearly more space between them."),
+  q("forklift", "state", "touching worker",
+    "Is the forklift touching the worker, with no gap between any part of the forklift and the person? " +
+      "Yes only if they are in contact; no if there is any visible gap."),
+  q("forklift", "state", "moving",
+    "Does the forklift move during this clip? Yes if its position changes; no if it stays completely still."),
+  q("worker", "state", "dodging",
+    "Does the worker suddenly step, jump or run out of the way during this clip? " +
+      "Yes only for a sudden fast movement; no if they stand still or walk calmly."),
+];
+
+/** Motion questions for the near-miss set, asked over a ~2 s clip. */
+export const SDG_NEARMISS_MOTION_QUESTION_IDS = ["forklift:state:moving", "worker:state:dodging"];
+
+export const QUESTION_SETS: Record<string, Question[]> = {
+  warehouse: WAREHOUSE_QUESTIONS,
+  "sdg-nearmiss": SDG_NEARMISS_QUESTIONS,
+};
