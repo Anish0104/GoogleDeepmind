@@ -11,9 +11,9 @@ export type Answer = "yes" | "no" | "unclear";
 export const SDG = {
   FPS: 30,
   SLICE_S: 0.5,
-  /** Motion questions look at one slice before and two after (lattice contextSlices = 4). */
+  /** Context-clip questions look at one slice before and seven after (sdg-nearmiss contextSlices = 8). */
   CONTEXT_BEFORE_S: 0.5,
-  CONTEXT_AFTER_S: 1.5,
+  CONTEXT_AFTER_S: 3.5,
   /**
    * Boxes are looser than the meshes (swinging arms, forks), and in this simulation the forklift does not
    * collide with the worker: its forks pass under or beside them. Checked on frames: overlaps up to ~0.5 m
@@ -257,7 +257,7 @@ export type SdgStateQuestionId = (typeof SDG_STATE_QUESTION_IDS)[number];
 export interface SliceTruth {
   /** Slice start (s): the slice is [t, t + 0.5). */
   t: number;
-  /** The motion questions' window, [t - 0.5, t + 1.5) clipped to the run. */
+  /** The context-clip questions' window, [t - 0.5, t + 3.5) clipped to the run. */
   window: [number, number];
   gapMinM: number;
   gapMaxM: number;
@@ -288,7 +288,9 @@ export function sliceTruth(track: TrackPoint[], fps: number = SDG.FPS): SliceTru
     const fMean = f.reduce((s, v) => s + v, 0) / f.length;
     const fMax = Math.max(...f);
     const wMax = Math.max(...inWindow.map((i) => wv[i]!));
-    const touching = band(inSlice.some((i) => deep[i]), gapMin >= SDG.CLEAR_M);
+    // Touching is asked on the context clip, so it is judged over the same window.
+    const wGapMin = Math.min(...inWindow.map((i) => track[i]!.gapM));
+    const touching = band(inWindow.some((i) => deep[i]), wGapMin >= SDG.CLEAR_M);
     const moving = band(fMean >= SDG.MOVING_MPS, fMax <= SDG.STILL_MPS);
     return {
       t,

@@ -49,8 +49,9 @@ export const SDG_NEARMISS_QUESTIONS: Question[] = [
     "Is any part of the forklift (body, mast or forks) within about one metre, roughly an arm's length, of the worker? " +
       "Yes only if they are that close; no if there is clearly more space between them."),
   q("forklift", "state", "touching worker",
-    "Does any part of the forklift touch the worker at any moment in this slice, with no gap between them? " +
-      "Yes if they are in contact at any point; no if there is a visible gap the whole time."),
+    "Does any part of the forklift - its body, its mast, or its forks low near the floor - touch the worker or run " +
+      "under or against their feet or legs at any moment in this clip? Yes if the forklift reaches the worker's body " +
+      "or feet; no if there is clear floor between them the whole time."),
   q("forklift", "state", "moving",
     "Does the forklift move during this clip? Yes if its position changes; no if it stays completely still."),
   q("worker", "state", "dodging",
@@ -58,8 +59,11 @@ export const SDG_NEARMISS_QUESTIONS: Question[] = [
       "Yes only for a sudden fast movement; no if they stand still or walk calmly."),
 ];
 
-/** Motion questions for the near-miss set, asked over a ~2 s clip. */
-export const SDG_NEARMISS_MOTION_QUESTION_IDS = ["forklift:state:moving", "worker:state:dodging"];
+/**
+ * Asked over the 4 s context clip, not the 0.5 s slice. On 2 scenes (16 clips each), touching separated
+ * confirmed contact from a 0.25 m near miss with AUROC 0.91 on 4 s clips vs ~0.5 on 0.5 s slices.
+ */
+export const SDG_NEARMISS_MOTION_QUESTION_IDS = ["forklift:state:touching_worker", "forklift:state:moving", "worker:state:dodging"];
 
 export const QUESTION_SETS: Record<string, Question[]> = {
   warehouse: WAREHOUSE_QUESTIONS,
@@ -106,12 +110,19 @@ export const QUESTION_SET_EXCLUSIVE: Record<string, [string, string][]> = {
   "sdg-nearmiss": [],
 };
 
+/** Slices per context clip (one before, the rest after): 4 = 2 s (default), 8 = 4 s. */
+export const QUESTION_SET_CONTEXT_SLICES: Record<string, number> = {
+  warehouse: 4,
+  "sdg-nearmiss": 8,
+};
+
 export interface QuestionSet {
   name: string;
   questions: Question[];
   entities: Entity[];
   people: Person[];
   motionIds: string[];
+  contextSlices: number;
 }
 
 /** Everything perceiveScene() needs for a named set; throws on an unknown name. */
@@ -124,5 +135,6 @@ export function questionSet(name: string): QuestionSet {
     entities: QUESTION_SET_ENTITIES[name] ?? [],
     people: QUESTION_SET_PEOPLE[name] ?? [],
     motionIds: QUESTION_SET_MOTION_IDS[name] ?? [],
+    contextSlices: QUESTION_SET_CONTEXT_SLICES[name] ?? 4,
   };
 }

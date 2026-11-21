@@ -205,21 +205,26 @@ describe("sliceTruth", () => {
     expect(truth).toHaveLength(20);
     expect(truth.map((s) => s.t).slice(0, 3)).toEqual([0, 0.5, 1]);
   });
-  it("answers near and touching from the closest point in the slice (it happens at any time in the clip)", () => {
+  it("answers near from the closest point in the 0.5 s slice", () => {
     const at = (t: number) => truth.find((s) => s.t === t)!;
     expect(at(0).answers["forklift:state:near_worker"]).toBe("no"); // gap 2.75..2.4
-    expect(at(0).answers["forklift:state:touching_worker"]).toBe("no");
     expect(at(1.5).answers["forklift:state:near_worker"]).toBe("unclear"); // closest 1.275, between NEAR_M and FAR_M
     expect(at(2).answers["forklift:state:near_worker"]).toBe("yes"); // closest 0.9
-    expect(at(4.5).answers["forklift:state:touching_worker"]).toBe("yes"); // contact starts at 4.33 s
-    expect(at(3.5).answers["forklift:state:touching_worker"]).toBe("unclear"); // overlapping, but not deep enough yet
-    expect(at(3).answers["forklift:state:touching_worker"]).toBe("unclear"); // closest 0.125: under CLEAR_M, no deep overlap
   });
-  it("answers motion questions over the 2 s context window (one slice before, two after)", () => {
+  it("answers touching over the 4 s context window: yes if contact happens in it, no if they stay clear", () => {
+    const at = (t: number) => truth.find((s) => s.t === t)!;
+    // contact (worker fully over the forklift's footprint) from 4.33 to 6.33 s
+    expect(at(1).answers["forklift:state:touching_worker"]).toBe("yes"); // window [0.5, 4.5] reaches 4.33
+    expect(at(4.5).answers["forklift:state:touching_worker"]).toBe("yes");
+    expect(at(0).answers["forklift:state:touching_worker"]).toBe("unclear"); // window ends 0.15 m away: not clear
+    expect(at(7).answers["forklift:state:touching_worker"]).toBe("unclear"); // shallow overlap as the back passes
+    expect(at(8).answers["forklift:state:touching_worker"]).toBe("no"); // window [7.5, 10]: always >= 0.375 m apart
+  });
+  it("answers motion questions over the same 4 s window (one slice before, seven after)", () => {
     expect(truth[4]!.answers["forklift:state:moving"]).toBe("yes");
     expect(truth[4]!.answers["worker:state:dodging"]).toBe("no");
-    expect(truth[4]!.window).toEqual([1.5, 3.5]);
-    expect(truth[0]!.window).toEqual([0, 1.5]);
+    expect(truth[4]!.window).toEqual([1.5, 5.5]);
+    expect(truth[0]!.window).toEqual([0, 3.5]);
   });
   it("says the forklift is not moving when it stands still", () => {
     const parked = Array.from({ length: 60 }, () => frame(box(0, 0, 0.5, 0.5), box(4, 0, 2, 1)));
