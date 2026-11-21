@@ -72,6 +72,7 @@ describe("lattice", () => {
     const [parts, qs, ctx] = decide.mock.calls[0]!;
     expect(parts[0]).toMatchObject({ kind: "media", mimeType: "video/mp4" });
     expect(parts[1].text).toContain("camera B");
+    expect(parts[1].text).not.toMatch(/zone|mat/i);
     expect(qs.every((q: { kind: string }) => q.kind === "noul")).toBe(true);
     expect(qs).toHaveLength(questions.length);
     expect(ctx).toEqual({ purpose: "lattice", sceneId: "s1" });

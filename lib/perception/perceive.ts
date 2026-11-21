@@ -1,18 +1,20 @@
 // OWNER: Dev 1. Runs Dev 1's whole pipeline for a recorded scene, in order:
 // sync -> slice -> scout -> lattice. Each step writes its file in data/scenes/<id>/.
 // Dev 3's /api/scene/[id]/run can call this; scripts can too.
-import type { GridRow, SyncResult } from "@/lib/types";
+import type { GridRow, Question, SyncResult } from "@/lib/types";
 import { syncScene } from "@/lib/capture/sync";
 import { sliceScene, type Slice } from "@/lib/capture/slice";
 import { scout } from "@/lib/perception/scout";
 import { latticeScene } from "@/lib/perception/lattice";
-import { loadManifest } from "@/lib/store/scene";
+import { loadManifest, writeJson } from "@/lib/store/scene";
 
 export type PerceiveStep = "sync" | "slice" | "scout" | "lattice";
 
 export interface PerceiveOptions {
   /** Only send the first N slices per camera to the grid (keeps free-tier tests cheap). */
   maxSlicesPerCamera?: number;
+  /** A fixed question set (e.g. WAREHOUSE_QUESTIONS); replaces scout's questions in questions.json. */
+  questions?: Question[];
   onStep?: (step: PerceiveStep, detail: string) => void;
   onRows?: (rows: GridRow[]) => void;
 }
@@ -43,7 +45,10 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
   const slices = await sliceScene(manifest, sync);
   step("slice", `${slices.length} slices`);
 
-  const { entities, questions } = await scout(scoutStills(slices), sceneId);
+  const scouted = await scout(scoutStills(slices), sceneId);
+  const { entities } = scouted;
+  const questions = opts.questions ?? scouted.questions;
+  if (opts.questions) await writeJson(sceneId, "questions.json", questions);
   step("scout", `${entities.length} objects: ${entities.map((e) => e.id).join(", ")}; ${questions.length} questions`);
 
   const max = opts.maxSlicesPerCamera;

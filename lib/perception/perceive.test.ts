@@ -49,4 +49,13 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", () => {
     const parts = (generateJson.mock.calls[0] as unknown as [string, { kind: string }[]])[1];
     expect(parts.filter((p) => p.kind === "media")).toHaveLength(2);
   }, 120_000);
+
+  it("uses a fixed question set instead of scout's questions when given", async () => {
+    const { WAREHOUSE_QUESTIONS } = await import("@/lib/perception/questionSets");
+    const res = await perceiveScene("p1", { maxSlicesPerCamera: 2, questions: WAREHOUSE_QUESTIONS });
+    expect(res.questions).toBe(WAREHOUSE_QUESTIONS.length);
+    expect(res.rows).toBe(4 * WAREHOUSE_QUESTIONS.length);
+    const saved = JSON.parse(readFileSync(path.join(dataDir, "scenes", "p1", "questions.json"), "utf8"));
+    expect(saved.map((q: { id: string }) => q.id)).toEqual(WAREHOUSE_QUESTIONS.map((q) => q.id));
+  }, 120_000);
 });

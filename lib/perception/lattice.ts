@@ -72,7 +72,7 @@ export async function lattice(slice: Slice, questions: Question[], sceneId: stri
   const groups = groupByEntity(questions);
   const video = mediaPart((await readFile(slice.path)).toString("base64"), "video/mp4");
   const context = textPart(
-    `Half-second video slice from camera ${slice.camera} filming a tabletop mat with six printed zones A-F. ` +
+    `Half-second video slice from camera ${slice.camera}. ` +
       `Answer each question only from what this camera shows in this slice.`,
   );
 
