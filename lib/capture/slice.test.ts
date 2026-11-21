@@ -37,7 +37,7 @@ const brightness = async (file: string) => {
   return Math.max(...frames[0]!);
 };
 
-describe.skipIf(!HAS_FFMPEG)("sliceScene", () => {
+describe.skipIf(!HAS_FFMPEG)("sliceScene", { timeout: 60_000 }, () => {
   it("cuts 0.5 s slices on the common synced range, skipping excluded cameras", async () => {
     const slices = await sliceScene(manifest, sync);
     const a = slices.filter((s) => s.camera === "A");

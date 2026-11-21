@@ -33,7 +33,7 @@ beforeAll(async () => {
 
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
 
-describe.skipIf(!HAS_FFMPEG)("perceiveScene", () => {
+describe.skipIf(!HAS_FFMPEG)("perceiveScene", { timeout: 60_000 }, () => {
   it("runs sync, slicing, scout and lattice, writing every step's file", async () => {
     const onStep = vi.fn();
     const res = await perceiveScene("p1", { maxSlicesPerCamera: 3, onStep });

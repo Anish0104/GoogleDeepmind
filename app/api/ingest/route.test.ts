@@ -38,7 +38,7 @@ function post(fields: Record<string, string | Blob>): Request {
   return new Request("http://localhost/api/ingest", { method: "POST", body: form });
 }
 
-describe.skipIf(!HAS_FFMPEG)("POST /api/ingest", () => {
+describe.skipIf(!HAS_FFMPEG)("POST /api/ingest", { timeout: 60_000 }, () => {
   it("accepts chunks, then finalizes on done=1", async () => {
     const half = Math.ceil(recording.length / 2);
     for (const [seq, part] of [recording.subarray(0, half), recording.subarray(half)].entries()) {

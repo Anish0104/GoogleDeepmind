@@ -49,8 +49,8 @@ export const SDG_NEARMISS_QUESTIONS: Question[] = [
     "Is any part of the forklift (body, mast or forks) within about one metre, roughly an arm's length, of the worker? " +
       "Yes only if they are that close; no if there is clearly more space between them."),
   q("forklift", "state", "touching worker",
-    "Is the forklift touching the worker, with no gap between any part of the forklift and the person? " +
-      "Yes only if they are in contact; no if there is any visible gap."),
+    "Does any part of the forklift touch the worker at any moment in this slice, with no gap between them? " +
+      "Yes if they are in contact at any point; no if there is a visible gap the whole time."),
   q("forklift", "state", "moving",
     "Does the forklift move during this clip? Yes if its position changes; no if it stays completely still."),
   q("worker", "state", "dodging",
@@ -91,6 +91,19 @@ export const QUESTION_SET_PEOPLE: Record<string, Person[]> = {
 export const QUESTION_SET_MOTION_IDS: Record<string, string[]> = {
   warehouse: WAREHOUSE_MOTION_QUESTION_IDS,
   "sdg-nearmiss": SDG_NEARMISS_MOTION_QUESTION_IDS,
+};
+
+/**
+ * Pairs of state questions that can never both be true: same entity, same window (both on the 0.5 s
+ * slice or both on the 2 s clip), and each is the other's exact negation. Dev 2's evidence may treat
+ * one as the alternative of the other, so a state claim can be contradicted.
+ */
+//
+// sdg-nearmiss has none for now: its opposites (clear_of_worker, stopped) scored high during real
+// contact and real motion, so a false "it never touched me" / "it stopped" could be Supported. They
+// were removed until a wording is validated against the answer keys.
+export const QUESTION_SET_EXCLUSIVE: Record<string, [string, string][]> = {
+  "sdg-nearmiss": [],
 };
 
 export interface QuestionSet {
