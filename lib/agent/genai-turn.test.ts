@@ -98,6 +98,18 @@ describe("function declarations", () => {
   });
 });
 
+describe("shared tool text", () => {
+  it("inspect_window and stop use the same descriptions as the managed agent, with the overlap example", async () => {
+    const { INSPECT_WINDOW_DESCRIPTION, STOP_DESCRIPTION } = await import("@/lib/agent/prompts");
+    const { MANAGED_TOOLS } = await import("@/lib/agent/managed-turn");
+    expect(mod.INSPECT_WINDOW_DECLARATION.description).toBe(INSPECT_WINDOW_DESCRIPTION);
+    expect(mod.STOP_DECLARATION.description).toBe(STOP_DESCRIPTION);
+    expect(MANAGED_TOOLS.map((t) => t.description)).toEqual([INSPECT_WINDOW_DESCRIPTION, STOP_DESCRIPTION]);
+    expect(INSPECT_WINDOW_DESCRIPTION).toContain("claim window 21–24 s → 20–23 s is fine; 18–21 s is rejected.");
+    expect(INSPECT_WINDOW_DESCRIPTION).toMatch(/share at least 1 s with the claim window/);
+  });
+});
+
 describe("standinModelName", () => {
   it("uses STANDIN_MODEL, falling back to MODELS.SCOUT", () => {
     expect(mod.standinModelName()).toBe(MODELS.SCOUT);

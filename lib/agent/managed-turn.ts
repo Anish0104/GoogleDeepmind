@@ -18,7 +18,9 @@ import type { AgentName, AgentStep } from "@/lib/types";
 import { newSession, type AgentSession, type PendingCall } from "@/lib/agent/environment";
 import { withRetry } from "@/lib/agent/genai-turn";
 import type { TurnInput, TurnOutput } from "@/lib/agent/loop";
-import { SYSTEM_PROMPTS } from "@/lib/agent/prompts";
+import { INSPECT_WINDOW_DESCRIPTION, STOP_DESCRIPTION, SYSTEM_PROMPTS } from "@/lib/agent/prompts";
+import { rejectionFeedback } from "@/lib/agent/feedback";
+import type { AgentMenu } from "@/lib/types";
 import { buildUserMessage } from "@/lib/agent/standin";
 
 export const API_VERSION = "v1beta";
@@ -33,9 +35,7 @@ export const MANAGED_TOOLS = [
   {
     type: "function" as const,
     name: "inspect_window",
-    description:
-      "Check one short clip from one camera. Use only a camera in includedCameras and a window inside " +
-      "allowedRangeS that is 1-4 s long, overlaps the claim window and does not overlap alreadyChecked.",
+    description: INSPECT_WINDOW_DESCRIPTION,
     parameters: {
       type: "object",
       properties: {
@@ -51,7 +51,7 @@ export const MANAGED_TOOLS = [
   {
     type: "function" as const,
     name: "stop",
-    description: "Stop when no allowed clip could change the result.",
+    description: STOP_DESCRIPTION,
     parameters: {
       type: "object",
       properties: { reason: { type: "string", description: "One sentence: why you are stopping." } },
@@ -144,8 +144,12 @@ function argsOf(steps: Interaction["steps"], id: string): unknown {
   return (steps ?? []).find((s) => s.type === "function_call" && s.id === id)?.arguments ?? {};
 }
 
-/** The function_result for the call the loop just handled, built from its AgentStep. */
-function resultFor(call: PendingCall, step: AgentStep | undefined, followUpsLeft: number): FunctionResultInput {
+/**
+ * The function_result for the call the loop just handled, built from its AgentStep. A rejection carries the
+ * bridge's reason, the claim window and a valid example window (same camera when possible).
+ */
+function resultFor(call: PendingCall, step: AgentStep | undefined, menu: AgentMenu): FunctionResultInput {
+  const followUpsLeft = menu.followUpsLeft;
   const base = { type: "function_result" as const, call_id: call.id, name: call.name };
   if (step?.action === "inspect_window" && step.result) {
     const e = step.result;
@@ -158,11 +162,8 @@ function resultFor(call: PendingCall, step: AgentStep | undefined, followUpsLeft
       },
     };
   }
-  return {
-    ...base,
-    is_error: true,
-    result: { error: step?.rejectionReason ?? "The call was not run.", followUpsLeft, next: NEXT_LINE },
-  };
+  const feedback = step ? rejectionFeedback(step, menu) : { error: "The call was not run." };
+  return { ...base, is_error: true, result: { ...feedback, followUpsLeft, next: NEXT_LINE } };
 }
 
 const extraResult = (call: PendingCall, followUpsLeft: number): FunctionResultInput => ({
@@ -282,7 +283,7 @@ export function createManagedTurn(opts: ManagedTurnOptions = {}): (input: TurnIn
         return { name: "stop", args: { reason: "No follow-ups left." }, implicitStop: true, tokens: 0, costUsd: 0, latencyMs: 0 };
       }
       input = [
-        resultFor(session.pending, history.at(-1), menu.followUpsLeft),
+        resultFor(session.pending, history.at(-1), menu),
         ...(session.extra ?? []).map((c) => extraResult(c, menu.followUpsLeft)),
       ];
     }

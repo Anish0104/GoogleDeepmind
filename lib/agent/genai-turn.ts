@@ -13,6 +13,7 @@ import {
 } from "@google/genai";
 import { COST_LOG, MODELS } from "@/lib/config";
 import { recordCost } from "@/lib/cost";
+import { INSPECT_WINDOW_DESCRIPTION, STOP_DESCRIPTION } from "@/lib/agent/prompts";
 import type { CostRecord } from "@/lib/types";
 import type { ModelReply, ModelRequest, StandinModel } from "@/lib/agent/standin";
 
@@ -20,9 +21,7 @@ import type { ModelReply, ModelRequest, StandinModel } from "@/lib/agent/standin
 
 export const INSPECT_WINDOW_DECLARATION: FunctionDeclaration = {
   name: "inspect_window",
-  description:
-    "Check one short clip from one camera. Use only a camera in includedCameras and a window inside " +
-    "allowedRangeS that is 1-4 s long and does not overlap alreadyChecked on that camera.",
+  description: INSPECT_WINDOW_DESCRIPTION,
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -42,7 +41,7 @@ export const INSPECT_WINDOW_DECLARATION: FunctionDeclaration = {
 
 export const STOP_DECLARATION: FunctionDeclaration = {
   name: "stop",
-  description: "Stop when no allowed clip could change the result.",
+  description: STOP_DESCRIPTION,
   parameters: {
     type: Type.OBJECT,
     properties: { reason: { type: Type.STRING, description: "One sentence: why you are stopping." } },

@@ -7,7 +7,7 @@ import { ApiError } from "@google/genai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LIMITS, MODELS } from "@/lib/config";
 import type { AgentMenu, AgentStep, Claim, ClaimResult, CostRecord, Evidence, SceneManifest } from "@/lib/types";
-import { SYSTEM_PROMPTS } from "@/lib/agent/prompts";
+import { INSPECT_WINDOW_DESCRIPTION, SYSTEM_PROMPTS } from "@/lib/agent/prompts";
 import { runAgent } from "@/lib/agent/loop";
 import { newSession } from "@/lib/agent/environment";
 import { createManagedTurn, type InteractionsClient, type ManagedCreateParams } from "@/lib/agent/managed-turn";
@@ -194,6 +194,7 @@ describe("createManagedTurn", () => {
       system_instruction: SYSTEM_PROMPTS.investigator,
     });
     expect(second.tools.map((t) => t.name)).toEqual(["inspect_window", "stop"]);
+    expect(second.tools[0]!.description).toBe(INSPECT_WINDOW_DESCRIPTION);
     expect(second.tools.every((t) => t.type === "function")).toBe(true);
     expect(second.input).toEqual([
       {
@@ -229,6 +230,8 @@ describe("createManagedTurn", () => {
         is_error: true,
         result: {
           error: "Camera D is not available.",
+          claimWindowS: [10, 14],
+          validExample: { camera_id: "B", start_s: 10, end_s: 14 }, // the step asked for B
           followUpsLeft: 1,
           next: "Call inspect_window for another allowed clip, or call stop.",
         },
