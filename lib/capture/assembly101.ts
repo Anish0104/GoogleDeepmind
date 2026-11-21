@@ -9,7 +9,7 @@ import path from "node:path";
 import { z } from "zod";
 import type { CameraId } from "@/lib/types";
 import { DATA_DIR } from "@/lib/config";
-import { createScene, scenePath } from "@/lib/store/scene";
+import { createScene, loadManifest, scenePath, writeJson } from "@/lib/store/scene";
 import { transcode } from "@/lib/video/ffmpeg";
 
 export const ANNOTATION_FPS = 30;
@@ -130,6 +130,9 @@ export async function importAssembly101(input: ImportOptions): Promise<ImportRes
       height: o.height,
     });
   }
+
+  // createScene() writes durationS 0; the trimmed stretch's length is known, so record it.
+  await writeJson(o.sceneId, "manifest.json", { ...(await loadManifest(o.sceneId)), durationS: o.endS - o.startS });
 
   const coarseFile = path.join(o.annotationsDir, "coarse-annotations", "coarse_labels", `assembly_${o.recording}.txt`);
   const coarse = existsSync(coarseFile) ? toSceneSeconds(parseCoarse(readFileSync(coarseFile, "utf8")), o.startS, o.endS) : [];

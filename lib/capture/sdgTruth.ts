@@ -14,9 +14,20 @@ export const SDG = {
   /** Motion questions look at one slice before and two after (lattice contextSlices = 4). */
   CONTEXT_BEFORE_S: 0.5,
   CONTEXT_AFTER_S: 1.5,
-  /** Footprints this close count as touching; at least CLEAR_M apart is clearly not touching. */
-  CONTACT_M: 0.05,
+  /**
+   * Boxes are looser than the meshes (swinging arms, forks), and in this simulation the forklift does not
+   * collide with the worker: its forks pass under or beside them. Checked on frames: overlaps up to ~0.5 m
+   * still show a visible gap on the eye-level cameras; ~1 m is the forks running under the worker's feet.
+   * Contact ("the forks reach the worker"): footprints overlap by at least CONTACT_OVERLAP_M for
+   * CONTACT_MIN_FRAMES frames in a row. Clearly not touching: at least CLEAR_M apart. Between: "unclear".
+   */
+  CONTACT_OVERLAP_M: 0.5,
+  CONTACT_MIN_FRAMES: 3,
   CLEAR_M: 0.3,
+  /** A run is a near miss only if the footprints stay at least this far apart the whole time. */
+  NEAR_MISS_MIN_GAP_M: 0.1,
+  /** A worker already against the forklift this early is its driver, not a pedestrian. */
+  RIDER_WINDOW_S: 0.5,
   /** "Within about one metre": yes when the slice's closest gap is within NEAR_M, no when it stays beyond FAR_M. */
   NEAR_M: 1.0,
   FAR_M: 1.5,
@@ -92,6 +103,27 @@ function segmentsCross(a: XY, b: XY, c: XY, d: XY): boolean {
   return d1 * d2 < 0 && d3 * d4 < 0;
 }
 
+/**
+ * How deep two convex polygons overlap: the smallest overlap of their projections over all edge
+ * normals (separating-axis test). Positive = overlapping by that much; 0 or less = apart.
+ */
+export function penetration(a: XY[], b: XY[]): number {
+  let best = Infinity;
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i]!;
+      const q = poly[(i + 1) % poly.length]!;
+      const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (len === 0) continue;
+      const n: XY = [-(q[1] - p[1]) / len, (q[0] - p[0]) / len];
+      const pa = a.map((v) => v[0] * n[0] + v[1] * n[1]);
+      const pb = b.map((v) => v[0] * n[0] + v[1] * n[1]);
+      best = Math.min(best, Math.min(Math.max(...pa), Math.max(...pb)) - Math.max(Math.min(...pa), Math.min(...pb)));
+    }
+  }
+  return best;
+}
+
 /** Shortest distance between two convex polygons; 0 when they touch or overlap. */
 export function polygonGap(a: XY[], b: XY[]): number {
   if (a.some((p) => inside(p, b)) || b.some((p) => inside(p, a))) return 0;
@@ -110,6 +142,8 @@ export interface TrackPoint {
   forklift: XY;
   /** Floor distance between the two footprints (m); 0 when they overlap. */
   gapM: number;
+  /** How deep the footprints overlap (m); 0 when apart. */
+  overlapM: number;
 }
 
 const centre = (f: XY[]): XY => [f.reduce((s, p) => s + p[0], 0) / f.length, f.reduce((s, p) => s + p[1], 0) / f.length];
@@ -124,7 +158,7 @@ export function trackRun(frames: DetectionFrame[], fps: number = SDG.FPS): Track
     };
     const w = of("character", "worker");
     const r = of("robot", "forklift");
-    return { t: i / fps, worker: centre(w), forklift: centre(r), gapM: polygonGap(w, r) };
+    return { t: i / fps, worker: centre(w), forklift: centre(r), gapM: polygonGap(w, r), overlapM: Math.max(0, penetration(w, r)) };
   });
 }
 
@@ -143,8 +177,10 @@ export interface RunSummary {
   durationS: number;
   minGapM: number;
   minGapT: number;
-  outcome: "contact" | "near_miss";
-  /** First and last time the footprints are within CONTACT_M, or null for a near miss. */
+  maxOverlapM: number;
+  /** contact: a clear overlap; near_miss: always NEAR_MISS_MIN_GAP_M apart; unclear: a brush in between. */
+  outcome: "contact" | "near_miss" | "unclear";
+  /** First and last frame time of clear overlap (contact frames), or null when there is no contact. */
   contact: [number, number] | null;
   /** First time the worker moves at DODGE_MPS or faster, or null if they never do. */
   dodgeStartT: number | null;
@@ -156,13 +192,41 @@ export interface RunSummary {
 
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
+/** Per frame: part of a run of at least CONTACT_MIN_FRAMES frames overlapping by CONTACT_OVERLAP_M or more. */
+export function contactFrames(track: TrackPoint[]): boolean[] {
+  const deep = track.map((p) => p.overlapM >= SDG.CONTACT_OVERLAP_M);
+  const out = deep.map(() => false);
+  for (let i = 0; i < deep.length; ) {
+    if (!deep[i]) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < deep.length && deep[j]) j++;
+    if (j - i >= SDG.CONTACT_MIN_FRAMES) for (let k = i; k < j; k++) out[k] = true;
+    i = j;
+  }
+  return out;
+}
+
+/** Why a run is not a usable near-miss scene, or null if it is. */
+export function checkRun(track: TrackPoint[], fps: number = SDG.FPS): string | null {
+  const early = track.slice(0, Math.max(1, Math.round(SDG.RIDER_WINDOW_S * fps)));
+  if (early.some((p) => p.gapM <= 0)) {
+    return `worker starts on or against the forklift (footprints overlap in the first ${SDG.RIDER_WINDOW_S} s): probably its driver`;
+  }
+  return null;
+}
+
 export function summarizeRun(track: TrackPoint[], fps: number = SDG.FPS): RunSummary {
   if (track.length === 0) throw new Error("empty track");
   let k = 0;
   track.forEach((p, i) => {
     if (p.gapM < track[k]!.gapM) k = i;
   });
-  const touching = track.filter((p) => p.gapM <= SDG.CONTACT_M);
+  const deep = contactFrames(track);
+  const touching = track.filter((_, i) => deep[i]);
+  const maxOverlap = Math.max(...track.map((p) => p.overlapM));
   const ws = speeds(track, "worker");
   const d = ws.findIndex((v) => v >= SDG.DODGE_MPS);
   const near = track.filter((p) => p.gapM <= SDG.NEAR_M);
@@ -173,7 +237,8 @@ export function summarizeRun(track: TrackPoint[], fps: number = SDG.FPS): RunSum
     durationS: track.length / fps,
     minGapM: r3(track[k]!.gapM),
     minGapT: r3(track[k]!.t),
-    outcome: touching.length > 0 ? "contact" : "near_miss",
+    maxOverlapM: r3(maxOverlap),
+    outcome: touching.length > 0 ? "contact" : track[k]!.gapM >= SDG.NEAR_MISS_MIN_GAP_M ? "near_miss" : "unclear",
     contact: touching.length > 0 ? [r3(touching[0]!.t), r3(touching[touching.length - 1]!.t)] : null,
     dodgeStartT: d < 0 ? null : r3(track[d]!.t),
     near: near.length > 0 ? [r3(near[0]!.t), r3(near[near.length - 1]!.t)] : null,
@@ -212,6 +277,7 @@ export function sliceTruth(track: TrackPoint[], fps: number = SDG.FPS): SliceTru
   const n = Math.floor(dur / SDG.SLICE_S + 1e-9);
   const fv = speeds(track, "forklift");
   const wv = speeds(track, "worker");
+  const deep = contactFrames(track);
   const idx = (a: number, b: number) => track.map((p, i) => [p, i] as const).filter(([p]) => p.t >= a - 1e-9 && p.t < b - 1e-9).map(([, i]) => i);
   return Array.from({ length: n }, (_, k) => {
     const t = r3(k * SDG.SLICE_S);
@@ -225,7 +291,7 @@ export function sliceTruth(track: TrackPoint[], fps: number = SDG.FPS): SliceTru
     const fMean = f.reduce((s, v) => s + v, 0) / f.length;
     const fMax = Math.max(...f);
     const wMax = Math.max(...inWindow.map((i) => wv[i]!));
-    const touching = band(gapMin <= SDG.CONTACT_M, gapMin >= SDG.CLEAR_M);
+    const touching = band(inSlice.some((i) => deep[i]), gapMin >= SDG.CLEAR_M);
     const moving = band(fMean >= SDG.MOVING_MPS, fMax <= SDG.STILL_MPS);
     return {
       t,

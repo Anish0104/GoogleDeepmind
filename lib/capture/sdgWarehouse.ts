@@ -16,11 +16,12 @@ import path from "node:path";
 import { z } from "zod";
 import type { CameraId } from "@/lib/types";
 import { DATA_DIR } from "@/lib/config";
-import { createScene, scenePath } from "@/lib/store/scene";
+import { createScene, loadManifest, scenePath, writeJson } from "@/lib/store/scene";
 import { transcode } from "@/lib/video/ffmpeg";
 import { maskCounts } from "@/lib/capture/sdgMasks";
 import {
   SDG,
+  checkRun,
   parseDetections,
   sliceTruth,
   summarizeRun,
@@ -56,7 +57,7 @@ export const SdgTruthFileSchema = z.looseObject({
   sceneId: z.string(),
   runId: z.string(),
   views: z.object({ A: z.string(), B: z.string(), C: z.string(), D: z.string() }),
-  summary: z.looseObject({ outcome: z.enum(["contact", "near_miss"]) }),
+  summary: z.looseObject({ outcome: z.enum(["contact", "near_miss", "unclear"]) }),
   slices: z.array(
     z.looseObject({
       t: z.number(),
@@ -141,7 +142,7 @@ export interface SdgImportResult {
   views: Record<CameraId, string>;
   files: Record<CameraId, string>;
   truthPath: string;
-  outcome: "contact" | "near_miss";
+  outcome: "contact" | "near_miss" | "unclear";
 }
 
 async function inBatches<T, R>(items: T[], size: number, fn: (x: T) => Promise<R>): Promise<R[]> {
@@ -170,6 +171,8 @@ export async function importSdgWarehouse(input: SdgImportOptions): Promise<SdgIm
   // Boxes are in world space, so the first camera's file gives the whole run.
   const first = meta.cameras[0]!.camera_alias;
   const track = trackRun(parseDetections(readFileSync(member(first, "object_detection"), "utf8")));
+  const unusable = checkRun(track);
+  if (unusable) throw new Error(`run ${o.runId} is not a usable near-miss scene: ${unusable}`);
   const summary = summarizeRun(track);
   const slices = sliceTruth(track);
   const mids = sliceMidFrames(track.length).slice(0, slices.length);
@@ -208,6 +211,9 @@ export async function importSdgWarehouse(input: SdgImportOptions): Promise<SdgIm
       height: o.height,
     });
   }
+
+  // createScene() writes durationS 0; the run's length is known, so record it.
+  await writeJson(o.sceneId, "manifest.json", { ...(await loadManifest(o.sceneId)), durationS: summary.durationS });
 
   const byAlias = new Map(vis.map((v) => [v.alias, v]));
   const truthPath = path.resolve(DATA_DIR, "labels", `${o.sceneId}.truth.json`);

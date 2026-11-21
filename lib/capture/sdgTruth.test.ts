@@ -2,7 +2,9 @@
 import { describe, expect, it } from "vitest";
 import {
   SDG,
+  checkRun,
   footprint,
+  penetration,
   parseDetections,
   polygonGap,
   sliceTruth,
@@ -109,12 +111,13 @@ describe("trackRun and speeds", () => {
 });
 
 describe("summarizeRun", () => {
-  it("calls overlapping footprints contact and finds when it starts and ends", () => {
+  it("calls a deep footprint overlap contact and finds when it starts and ends", () => {
     const s = summarizeRun(trackRun(approach(300, 4)));
     expect(s.outcome).toBe("contact");
     expect(s.minGapM).toBe(0);
-    // gap = 4 - 0.75t - 1.25 hits CONTACT_M at t = (2.75 - 0.05) / 0.75 = 3.6 s
-    expect(s.contact![0]).toBeCloseTo(3.6, 1);
+    expect(s.maxOverlapM).toBeGreaterThan(0.4);
+    // front edge x = 3 - 0.75t; the worker (x in [-0.25, 0.25]) is fully over the forklift, overlap 0.5, once 3 - 0.75t <= -0.25
+    expect(s.contact![0]).toBeCloseTo(4.333, 1);
     expect(s.durationS).toBeCloseTo(10, 9);
     expect(s.dodgeStartT).toBeNull();
   });
@@ -138,9 +141,62 @@ describe("summarizeRun", () => {
     const s = summarizeRun(trackRun(approach(300, 4, 2)));
     expect(s.outcome).toBe("near_miss");
     expect(s.contact).toBeNull();
-    expect(s.minGapM).toBeGreaterThan(SDG.CONTACT_M);
+    expect(s.minGapM).toBeGreaterThanOrEqual(SDG.NEAR_MISS_MIN_GAP_M);
     expect(s.dodgeStartT!).toBeGreaterThan(1.9);
     expect(s.dodgeStartT!).toBeLessThan(2.2);
+  });
+});
+
+describe("penetration", () => {
+  const unit: XY[] = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  it("is how far two footprints overlap along their thinnest overlapping axis", () => {
+    expect(penetration(unit, [[0.8, 0], [2, 0], [2, 1], [0.8, 1]])).toBeCloseTo(0.2, 9);
+    expect(penetration(unit, [[0.5, 0.9], [1.5, 0.9], [1.5, 2], [0.5, 2]])).toBeCloseTo(0.1, 9);
+  });
+  it("is 0 or less for footprints that do not overlap", () => {
+    expect(penetration(unit, [[2, 0], [3, 0], [3, 1], [2, 1]])).toBeLessThanOrEqual(0);
+  });
+});
+
+describe("contact needs a clear overlap; shallow ones are unclear", () => {
+  /** Forklift drives along x, stops so its front edge overlaps the worker's footprint by `depth` m, then reverses. */
+  function brush(depth: number): DetectionFrame[] {
+    return Array.from({ length: 300 }, (_, i) => {
+      const t = i / SDG.FPS;
+      const closest = 1 + 0.25 - depth; // forklift centre x when its front edge (cx - 1) is `depth` into [-0.25, 0.25]
+      const cx = closest + Math.abs(t - 5) * 0.5;
+      return frame(box(0, 0, 0.5, 0.5), box(cx, 0, 2, 1));
+    });
+  }
+  it("a 10 cm overlap is unclear, not contact", () => {
+    const s = summarizeRun(trackRun(brush(0.1)));
+    expect(s.outcome).toBe("unclear");
+    expect(s.contact).toBeNull();
+    const at5 = sliceTruth(trackRun(brush(0.1))).find((x) => x.t === 5)!;
+    expect(at5.answers["forklift:state:touching_worker"]).toBe("unclear");
+    expect(at5.answers["forklift:state:clear_of_worker"]).toBe("unclear");
+  });
+  it("a 30 cm overlap is still unclear (boxes are looser than the bodies)", () => {
+    expect(summarizeRun(trackRun(brush(0.3))).outcome).toBe("unclear");
+  });
+  it("the forklift running fully over the worker's footprint for several frames is contact, and its slice says touching", () => {
+    const s = summarizeRun(trackRun(brush(0.6)));
+    expect(s.outcome).toBe("contact");
+    expect(sliceTruth(trackRun(brush(0.6))).find((x) => x.t === 5)!.answers["forklift:state:touching_worker"]).toBe("yes");
+  });
+  it("a 5 cm gap is unclear; a gap of NEAR_MISS_MIN_GAP_M or more the whole time is a near miss", () => {
+    expect(summarizeRun(trackRun(brush(-0.05))).outcome).toBe("unclear");
+    expect(summarizeRun(trackRun(brush(-0.2))).outcome).toBe("near_miss");
+  });
+});
+
+describe("checkRun", () => {
+  it("rejects a run whose worker starts on or against the forklift (e.g. its driver)", () => {
+    const riding = Array.from({ length: 60 }, (_, i) => frame(box(1 - i / 60, 0, 0.5, 0.5), box(1 - i / 60, 0, 2, 1)));
+    expect(checkRun(trackRun(riding))).toMatch(/starts on or against the forklift/);
+  });
+  it("accepts a normal approach", () => {
+    expect(checkRun(trackRun(approach(300, 4)))).toBeNull();
   });
 });
 
@@ -156,8 +212,9 @@ describe("sliceTruth", () => {
     expect(at(0).answers["forklift:state:touching_worker"]).toBe("no");
     expect(at(1.5).answers["forklift:state:near_worker"]).toBe("unclear"); // closest 1.275, between NEAR_M and FAR_M
     expect(at(2).answers["forklift:state:near_worker"]).toBe("yes"); // closest 0.9
-    expect(at(3.5).answers["forklift:state:touching_worker"]).toBe("yes"); // contact starts at 3.6 s, inside the slice
-    expect(at(3).answers["forklift:state:touching_worker"]).toBe("unclear"); // closest 0.125: between CONTACT_M and CLEAR_M
+    expect(at(4.5).answers["forklift:state:touching_worker"]).toBe("yes"); // contact starts at 4.33 s
+    expect(at(3.5).answers["forklift:state:touching_worker"]).toBe("unclear"); // overlapping, but not deep enough yet
+    expect(at(3).answers["forklift:state:touching_worker"]).toBe("unclear"); // closest 0.125: under CLEAR_M, no deep overlap
   });
   it("answers motion questions over the 2 s context window (one slice before, two after)", () => {
     expect(truth[4]!.answers["forklift:state:moving"]).toBe("yes");
