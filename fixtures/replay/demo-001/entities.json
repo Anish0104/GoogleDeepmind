@@ -1,0 +1,6 @@
+[
+  { "id": "e1", "description": "red ceramic mug", "color": "red", "feature": "chipped rim" },
+  { "id": "e2", "description": "set of keys", "feature": "brass keyring" },
+  { "id": "e3", "description": "phone", "color": "black" },
+  { "id": "e4", "description": "blue box", "color": "blue" }
+]

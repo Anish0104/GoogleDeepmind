@@ -1,0 +1,4 @@
+[
+  { "id": "q1", "entityId": "e1", "predicate": "location", "value": "shelf", "text": "Is the red mug on the shelf?" },
+  { "id": "q2", "entityId": "e2", "predicate": "location", "value": "drawer", "text": "Are the keys in the drawer?" }
+]
