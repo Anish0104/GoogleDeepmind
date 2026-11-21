@@ -98,12 +98,31 @@ describe("buildMenu", () => {
       stillIds: { A: "still-A", B: "still-B" },
       includedCameras: ["A", "B", "C"],
       allowedRangeS: [10 - LIMITS.AGENT_RANGE_PAD_S, 15], // clamped to the scene duration
-      alreadyChecked: [
-        { camera: "A", window: [10, 12] },
-        { camera: "B", window: [12, 14] },
-      ],
+      alreadyChecked: [], // all evidence so far is initial grid evidence, not a clip check
       followUpsLeft: LIMITS.AGENT_MAX_CHECKS,
     });
+  });
+
+  it("alreadyChecked lists only clips an agent checked, never initial grid evidence or excluded cameras", async () => {
+    const agentEv = (camera: Evidence["camera"], window: [number, number], source: Evidence["source"]) => ({
+      ...ev(camera, window),
+      source,
+    });
+    const r: ClaimResult = {
+      ...result,
+      evidence: [
+        ev("A", [10, 12]), // initial: the grid's half-second stills, not a clip check
+        agentEv("B", [11, 14], "investigator"),
+        agentEv("C", [9, 11], "skeptic"),
+        agentEv("D", [10, 13], "investigator"), // excluded camera
+      ],
+    };
+    const menu = await menuMod.buildMenu("investigator", claim, r, manifest);
+    expect(menu.alreadyChecked).toEqual([
+      { camera: "B", window: [11, 14] },
+      { camera: "C", window: [9, 11] },
+    ]);
+    expect(menu.evidence.map((e) => e.camera)).toEqual(["A", "B", "C"]); // initial evidence is still shown
   });
 
   it("never includes excluded cameras", async () => {

@@ -76,7 +76,11 @@ export async function buildMenu(
     stillIds,
     includedCameras,
     allowedRangeS: [lo, hi],
-    alreadyChecked: evidence.map((e) => ({ camera: e.camera, window: [e.window[0], e.window[1]] })),
+    // Only clips an agent already checked. Initial evidence comes from the grid's half-second stills, not a
+    // clip check, so an agent may still check a clip in the same window (that is the point of the follow-up).
+    alreadyChecked: evidence
+      .filter((e) => e.source !== "initial")
+      .map((e) => ({ camera: e.camera, window: [e.window[0], e.window[1]] })),
     followUpsLeft: LIMITS.AGENT_MAX_CHECKS,
   };
 }
