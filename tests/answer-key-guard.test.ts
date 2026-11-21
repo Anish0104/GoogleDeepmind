@@ -100,3 +100,55 @@ describe("answer-key guard: runtime", () => {
     expect(JSON.stringify(menu)).not.toContain(SECRET);
   });
 });
+
+describe("answer-key guard: the warehouse eval is the only new reader of data/labels", () => {
+  /** Existing files that touch data/labels, with why; any other file naming a labels path fails. */
+  const KNOWN_LABELS_USERS: Record<string, string> = {
+    "lib/capture/assembly101.ts": "Dev 1: WRITES the Assembly101 answer key (<sceneId>.labels.json); never reads it",
+    "app/label/actions.ts": "Dev 4: the human labelling tool reads/writes its own <sceneId>__<labeler>.json files",
+    "eval/report.ts": "Dev 4: the results report reads the merged human labels (<sceneId>.json)",
+  };
+  const isEvalReader = (f: string) => f.startsWith(`scripts${path.sep}eval${path.sep}`);
+
+  async function allSources(dirs: string[]): Promise<string[]> {
+    const out: string[] = [];
+    for (const d of dirs) {
+      try {
+        out.push(...(await sourceFiles(d)));
+      } catch {
+        /* folder absent */
+      }
+    }
+    return out;
+  }
+
+  it("nothing in lib/ or app/ imports scripts/eval", async () => {
+    const files = await allSources(["lib", "app"]);
+    expect(files.length).toBeGreaterThan(40);
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = await readFile(path.join(ROOT, f), "utf8");
+      if (/from\s+["'](?:@\/|(?:\.\.?\/)+)scripts\/eval|import\(\s*["'](?:@\/|(?:\.\.?\/)+)scripts\/eval/.test(src)) offenders.push(f);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("only scripts/eval (plus the known files above) names a labels path anywhere in the source", async () => {
+    const files = await allSources(["lib", "app", "scripts", "eval", "components"]);
+    const offenders: string[] = [];
+    for (const f of files) {
+      if (isEvalReader(f) || f in KNOWN_LABELS_USERS) continue;
+      const hits = labelsPathLiterals(await readFile(path.join(ROOT, f), "utf8"));
+      if (hits.length) offenders.push(`${f}: ${hits.join(", ")}`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("the eval does read the answer key (so the allowance above is real), and the known users still exist", async () => {
+    const truth = await readFile(path.join(ROOT, "scripts/eval/truth.ts"), "utf8");
+    expect(labelsPathLiterals(truth).length).toBeGreaterThan(0);
+    for (const f of Object.keys(KNOWN_LABELS_USERS)) {
+      expect(labelsPathLiterals(await readFile(path.join(ROOT, f), "utf8")).length, f).toBeGreaterThan(0);
+    }
+  });
+});
