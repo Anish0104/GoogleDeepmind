@@ -1,1 +1,244 @@
 @import "tailwindcss";
+
+/* OWNER: Dev 4. Design tokens and shared classes from the frontend handoff. */
+
+@theme {
+  --font-sans: var(--font-geist), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-page: #000000;
+  --color-card: #131209;
+  --color-raised: #181818;
+  --color-ink: #ece6da;
+  --color-ink-2: #c9c2b4;
+  --color-body: #a9aeb5;
+  --color-muted: #9aa0a8;
+  --color-caption: #8a9099;
+  --color-meta: #7d838c;
+  --color-faint: #5e646d;
+  --color-cyan: #7cc7ff;
+  --color-violet: #b79cff;
+  --color-sup: #5be49b;
+  --color-con: #ff5a47;
+  --color-ins: #ffc23d;
+  --ease-base: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-reveal: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* The dark shell only applies to the cinematic routes; /phone and /label keep their look. */
+body:has([data-site]) {
+  margin: 0;
+  background: #000000;
+  color: #ece6da;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+[data-site] a {
+  color: #7cc7ff;
+  text-decoration: none;
+}
+[data-site] a:hover {
+  color: #ece6da;
+}
+[data-site] ::selection {
+  background: #7cc7ff;
+  color: #060709;
+}
+[data-site] button {
+  font-family: inherit;
+}
+[data-site] :focus-visible {
+  outline: 2px solid #7cc7ff;
+  outline-offset: 2px;
+}
+
+@keyframes rsBlink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes rsPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 90, 71, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(255, 90, 71, 0);
+  }
+}
+@keyframes rsShimmer {
+  0% {
+    background-position: -240px 0;
+  }
+  100% {
+    background-position: 240px 0;
+  }
+}
+@keyframes rsStamp {
+  0% {
+    transform: scale(1.6) rotate(-8deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.94) rotate(-3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-3deg);
+    opacity: 1;
+  }
+}
+@keyframes rsSweep {
+  0% {
+    transform: translateX(-200px);
+  }
+  60%,
+  100% {
+    transform: translateX(1100px);
+  }
+}
+@keyframes rsSweepR {
+  0%,
+  30% {
+    transform: translateX(200px);
+  }
+  100% {
+    transform: translateX(-1100px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-site] *,
+  [data-site] *::before,
+  [data-site] *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  .rs-mono {
+    font-family: var(--font-mono);
+  }
+  .rs-card {
+    border: 1px solid rgba(236, 230, 218, 0.09);
+    background: #131209;
+  }
+  .rs-caret {
+    display: inline-block;
+    width: 2px;
+    height: 0.9em;
+    margin-left: 3px;
+    vertical-align: -0.08em;
+    background: #ece6da;
+    animation: rsBlink 1s steps(1) infinite;
+  }
+  .rs-btn {
+    cursor: pointer;
+    border-radius: 999px;
+    transition:
+      background 0.3s var(--ease-base),
+      border-color 0.3s var(--ease-base),
+      color 0.3s var(--ease-base),
+      box-shadow 0.3s var(--ease-base),
+      transform 0.3s var(--ease-base);
+  }
+  .rs-btn-primary {
+    background: #ece6da;
+    color: #060709;
+    border: 0;
+    font-weight: 600;
+  }
+  .rs-btn-primary:hover {
+    background: #ffffff;
+  }
+  .rs-btn-ghost {
+    background: rgba(236, 230, 218, 0.04);
+    color: #ece6da;
+    border: 1px solid rgba(236, 230, 218, 0.18);
+  }
+  .rs-btn-ghost:hover {
+    background: rgba(236, 230, 218, 0.1);
+    border-color: rgba(236, 230, 218, 0.4);
+  }
+  .rs-btn-line {
+    background: transparent;
+    color: #ece6da;
+    border: 1px solid rgba(236, 230, 218, 0.2);
+  }
+  .rs-btn-line:hover {
+    border-color: rgba(236, 230, 218, 0.5);
+  }
+  .rs-hover-raise {
+    transition:
+      background 0.3s var(--ease-base),
+      border-color 0.3s var(--ease-base);
+  }
+  .rs-hover-raise:hover {
+    background: #181818;
+  }
+  .rs-hover-border:hover {
+    border-color: rgba(236, 230, 218, 0.35) !important;
+  }
+  .rs-shimmer {
+    background: linear-gradient(90deg, rgba(236, 230, 218, 0.03), rgba(236, 230, 218, 0.12), rgba(236, 230, 218, 0.03));
+    background-size: 240px 100%;
+    animation: rsShimmer 1.4s linear infinite;
+  }
+}
+
+[data-site] .rs-navlink:hover {
+  color: #ece6da !important;
+}
+[data-site] .rs-cta-btn {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.4) inset,
+    0 0 28px rgba(236, 230, 218, 0.22);
+  transition:
+    transform 0.3s var(--ease-base),
+    box-shadow 0.3s var(--ease-base);
+}
+[data-site] .rs-cta-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset,
+    0 0 40px rgba(236, 230, 218, 0.4);
+}
+[data-site] .rs-cta-btn:active {
+  transform: scale(0.98);
+}
+
+/* Board: main section spans two thirds next to the aside once there is room for both. */
+.rs-board-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1100px) {
+  .rs-board-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+[data-site] .rs-glow-btn {
+  box-shadow: 0 0 40px rgba(236, 230, 218, 0.18);
+}
+[data-site] .rs-glow-btn:hover {
+  box-shadow: 0 0 60px rgba(236, 230, 218, 0.32);
+}
+[data-site] a.rs-btn:hover {
+  color: #ece6da;
+}
+[data-site] a.rs-btn-primary,
+[data-site] a.rs-btn-primary:hover {
+  color: #060709;
+}
+[data-site] .rs-tile {
+  transition: border-color 0.3s var(--ease-base);
+}
+[data-site] .rs-tile:hover {
+  border-color: rgba(236, 230, 218, 0.24) !important;
+}
+[data-site] a.rs-done-btn,
+[data-site] a.rs-done-btn:hover {
+  color: #060709;
+}
+[data-site] a.rs-done-btn:hover {
+  background: #7cf0b2 !important;
+}
