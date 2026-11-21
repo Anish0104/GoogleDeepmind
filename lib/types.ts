@@ -167,8 +167,9 @@ export interface AgentStep {
 // ---------- pipeline ----------
 /** data/scenes/<id>/run.json: progress of the scene pipeline, read by the board's event stream. */
 export interface RunStatus {
-  status: "queued" | "running" | "done" | "failed";
-  /** Current stage, or the stage that failed: claims, probe, sync, slice, scout, lattice, evidence, audit, stills, agents, done. */
+  /** "perceived": the scene run finished (probe + perception); labels come from the account, agents from /agents. */
+  status: "queued" | "running" | "perceived" | "done" | "failed";
+  /** Current stage, or the stage that failed: queued, probe, perceive, stills, perceived. */
   stage: string;
   startedAt: string;
   finishedAt?: string;

@@ -244,3 +244,115 @@ describe("saveResult", () => {
     await expect(store.saveResult("s1", result("c2"))).rejects.toThrow(/results\.json/);
   });
 });
+
+describe("one lock per scene: serialised() waits, lockScene() refuses", () => {
+  const deferred = () => {
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => (resolve = r));
+    return { promise, resolve };
+  };
+
+  it("lockScene() refuses while another holder has the scene; release lets the next one in", () => {
+    const release = store.lockScene("L1")!;
+    expect(store.isSceneLocked("L1")).toBe(true);
+    expect(store.lockScene("L1")).toBeNull();
+    expect(store.lockScene("L2")).not.toBeNull(); // other scenes are independent
+    release();
+    release(); // idempotent
+    expect(store.isSceneLocked("L1")).toBe(false);
+    store.lockScene("L1")!();
+  });
+
+  it("serialised() runs one at a time per scene, in order, even after a failure", async () => {
+    const order: string[] = [];
+    const gate = deferred();
+    const a = store.serialised("S1", async () => {
+      order.push("a start");
+      await gate.promise;
+      order.push("a end");
+      throw new Error("a failed");
+    });
+    const b = store.serialised("S1", async () => {
+      order.push("b");
+      return 2;
+    });
+    await Promise.resolve();
+    expect(order).toEqual(["a start"]);
+    gate.resolve();
+    await expect(a).rejects.toThrow("a failed");
+    expect(await b).toBe(2);
+    expect(order).toEqual(["a start", "a end", "b"]);
+    expect(store.isSceneLocked("S1")).toBe(false);
+  });
+
+  it("while serialised() work runs or waits, lockScene() refuses (409 for the routes)", async () => {
+    const gate = deferred();
+    const run = store.serialised("S2", () => gate.promise);
+    expect(store.isSceneLocked("S2")).toBe(true);
+    expect(store.lockScene("S2")).toBeNull();
+    gate.resolve();
+    await run;
+    expect(store.lockScene("S2")).not.toBeNull();
+  });
+
+  it("serialised() waits for a lockScene() holder to release, then runs", async () => {
+    const release = store.lockScene("S3")!;
+    let ran = false;
+    const run = store.serialised("S3", async () => {
+      ran = true;
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(ran).toBe(false);
+    release();
+    await run;
+    expect(ran).toBe(true);
+    expect(store.isSceneLocked("S3")).toBe(false);
+  });
+});
+
+describe("saveResultIf / removeResult", () => {
+  it("saveResultIf saves only when the stored entry still equals what was read", async () => {
+    const original = result("c1");
+    await store.saveResult("s1", original);
+
+    // Read c1, then someone else (an agent) saves a newer c1: our stale write is refused.
+    const read = (await store.loadResults("s1")).find((r) => r.claimId === "c1")!;
+    await store.saveResult("s1", result("c1", "Supported"));
+    expect(await store.saveResultIf("s1", result("c1", "Contradicted"), read)).toEqual({
+      saved: false,
+      current: result("c1", "Supported"),
+    });
+    expect((await store.loadResults("s1"))[0]!.verdict).toBe("Supported");
+
+    // With the current entry as the expectation, it saves.
+    const fresh = (await store.loadResults("s1"))[0]!;
+    expect(await store.saveResultIf("s1", result("c1", "Contradicted"), fresh)).toEqual({
+      saved: true,
+      current: result("c1", "Contradicted"),
+    });
+  });
+
+  it("saveResultIf with expected null saves only a claim that has no entry yet", async () => {
+    expect(await store.saveResultIf("s1", result("c2"), null)).toEqual({ saved: true, current: result("c2") });
+    expect(await store.saveResultIf("s1", result("c2", "Supported"), null)).toEqual({ saved: false, current: result("c2") });
+  });
+
+  it("concurrent saveResultIf calls from the same read: exactly one wins", async () => {
+    await store.saveResult("s1", result("c1"));
+    const read = (await store.loadResults("s1"))[0]!;
+    const outcomes = await Promise.all(
+      (["Supported", "Contradicted", "Insufficient"] as const).map((v, i) =>
+        store.saveResultIf("s1", { ...result("c1", v), history: [{ from: "Insufficient", to: v, by: "investigator", reason: `w${i}`, at: "t" }] }, read),
+      ),
+    );
+    expect(outcomes.filter((o) => o.saved)).toHaveLength(1);
+  });
+
+  it("removeResult removes one claim's entry, keeps the rest in order, and says whether it existed", async () => {
+    for (const id of ["c1", "c2", "c3"]) await store.saveResult("s1", result(id));
+    expect(await store.removeResult("s1", "c2")).toBe(true);
+    expect((await store.loadResults("s1")).map((r) => r.claimId)).toEqual(["c1", "c3"]);
+    expect(await store.removeResult("s1", "c2")).toBe(false);
+    expect(await store.removeResult("empty-scene", "c1")).toBe(false);
+  });
+});

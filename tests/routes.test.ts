@@ -4,7 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 
 const handleAgentRequest = vi.fn(async (_agent: string, _body: unknown) => ({ status: 409, body: { error: "locked" } }));
 const handleSceneStart = vi.fn(async (_body: unknown) => ({ status: 201, body: { sceneId: "s-new" } }));
-vi.mock("@/lib/api/handlers", () => ({ handleAgentRequest, handleSceneStart }));
+const handleRunStart = vi.fn(async (_id: string) => ({ status: 202, body: { sceneId: "s1", status: "queued" } }));
+const handleAgentsRun = vi.fn(async (_id: string) => ({ status: 409, body: { error: "locked" } }));
+vi.mock("@/lib/api/handlers", () => ({ handleAgentRequest, handleSceneStart, handleRunStart, handleAgentsRun }));
 
 const post = (body: string) => new Request("http://x/api", { method: "POST", body, headers: { "content-type": "application/json" } });
 
@@ -57,5 +59,23 @@ describe("GET /api/scene/[id]/events", () => {
     const reader = res.body!.getReader();
     ac.abort();
     await expect(reader.read()).resolves.toMatchObject({ done: true });
+  });
+});
+
+describe("POST /api/scene/[id]/run and /agents", () => {
+  const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
+  it("run passes the scene id through and returns the handler's 202", async () => {
+    const { POST } = await import("@/app/api/scene/[id]/run/route");
+    const res = await POST(new Request("http://x", { method: "POST" }), ctx("s1"));
+    expect(handleRunStart).toHaveBeenCalledWith("s1");
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ sceneId: "s1", status: "queued" });
+  });
+
+  it("agents passes the scene id through and keeps the handler's status", async () => {
+    const { POST } = await import("@/app/api/scene/[id]/agents/route");
+    const res = await POST(new Request("http://x", { method: "POST" }), ctx("s1"));
+    expect(handleAgentsRun).toHaveBeenCalledWith("s1");
+    expect(res.status).toBe(409);
   });
 });
