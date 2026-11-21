@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { LIMITS, THRESHOLDS } from "@/lib/config";
 import { SYSTEM_PROMPTS } from "@/lib/agent/prompts";
-import { verdict } from "@/lib/inference/verdict";
+import { notImplemented } from "@/lib/not-implemented";
 
 describe("scaffold", () => {
   it("orders the verdict thresholds", () => {
@@ -21,6 +21,6 @@ describe("scaffold", () => {
   });
 
   it("stubs say who owns them", () => {
-    expect(() => verdict([], {} as never, null)).toThrow("[Dev 2]");
+    expect(() => notImplemented("Dev 2", "x")).toThrow("[Dev 2]");
   });
 });
