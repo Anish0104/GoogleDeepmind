@@ -43,8 +43,25 @@ const EPS = 1e-6;
 
 // ---------- schema ----------
 
-/** Carbon's output. Lenient per sentence so each sentence can be judged and explained on its own. */
-export const JudgeResponseSchema = z
+/**
+ * MODEL-FACING schema passed to generateJson() and sent to Gemini as the response JSON schema. No
+ * array/string bounds: Gemini's constrained decoder rejects nested limits ("too many states", HTTP 400).
+ */
+export const JudgeResponseSchema = z.object({
+  sentences: z.array(
+    z.object({
+      text: z.string(),
+      eventIds: z.array(z.string()),
+      citations: z.array(z.object({ camera: z.enum(["A", "B", "C", "D"]), window: z.array(z.number()) })),
+    }),
+  ),
+});
+
+/**
+ * APP-SIDE envelope applied to every response before per-sentence validation: caps, strict keys.
+ * Lenient per sentence (camera is any string) so each sentence can be judged and explained on its own.
+ */
+export const JudgeStrictSchema = z
   .object({
     sentences: z
       .array(
@@ -57,7 +74,7 @@ export const JudgeResponseSchema = z
       .max(20),
   })
   .strict();
-type RawSentence = z.infer<typeof JudgeResponseSchema>["sentences"][number];
+type RawSentence = z.infer<typeof JudgeStrictSchema>["sentences"][number];
 
 // ---------- provenance ----------
 
@@ -264,7 +281,7 @@ export async function judge(question: string, events: Event[], rows: GridRow[]):
       feedback = "Your previous response was not valid JSON for the required schema. Return only the JSON object.";
       continue;
     }
-    const parsed = JudgeResponseSchema.safeParse(response);
+    const parsed = JudgeStrictSchema.safeParse(response);
     if (!parsed.success) {
       lastError = parsed.error;
       feedback = "Your previous response did not match the required schema. Return only the JSON object.";
