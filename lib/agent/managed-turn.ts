@@ -205,6 +205,14 @@ export interface ManagedTurnOptions {
   now?: () => Date;
 }
 
+/** The MANAGED_PRICE_* warning is printed once per process, not once per run (each claim is a new run). */
+let warnedNoPrices = false;
+
+/** Tests only: lets a test see the once-per-process warning again. */
+export function resetPriceWarningForTests(): void {
+  warnedNoPrices = false;
+}
+
 /**
  * A turn function for runAgent() backed by one Managed Agent session. Throws (so the loop records
  * model_unavailable) on failed / cancelled / incomplete or any other non-actionable status, an in_progress
@@ -225,13 +233,12 @@ export function createManagedTurn(opts: ManagedTurnOptions = {}): (input: TurnIn
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const clock = opts.clock ?? (() => performance.now());
   const now = opts.now ?? (() => new Date());
-  let warnedNoPrices = false;
 
   const price = (v: string | undefined) => {
     const n = v === undefined || v.trim() === "" ? NaN : Number(v);
     return Number.isFinite(n) && n >= 0 ? n : null;
   };
-  /** USD from MANAGED_PRICE_IN / MANAGED_PRICE_OUT (per 1M tokens). 0 with one warning per run if unset. */
+  /** USD from MANAGED_PRICE_IN / MANAGED_PRICE_OUT (per 1M tokens). 0 with one warning per process if unset. */
   const usdFor = (inputTokens: number, outputTokens: number) => {
     const pin = price(process.env.MANAGED_PRICE_IN);
     const pout = price(process.env.MANAGED_PRICE_OUT);

@@ -1,7 +1,19 @@
 // OWNER: Dev 3. Kill test H, offline mode only (no Gemini, no video): the same function `pnpm killtest h` runs.
 import { beforeAll, describe, expect, it } from "vitest";
 import type { TurnInput, TurnOutput } from "@/lib/agent/loop";
-import { buildScene, CASES, CLAIMS, formatReport, runKillTestH, type HReport } from "@/scripts/killtests/h";
+import type { AgentStep } from "@/lib/types";
+import {
+  buildScene,
+  callsFromSteps,
+  CASES,
+  CLAIMS,
+  formatReport,
+  replayTurn,
+  runKillTestH,
+  savedCallsOf,
+  type HReport,
+  type SavedCalls,
+} from "@/scripts/killtests/h";
 
 // Whole kill-test runs are slow-ish under the parallel suite; give them room instead of the 5 s default.
 describe("kill test H (offline: safety checks only)", { timeout: 60_000 }, () => {
@@ -93,5 +105,76 @@ describe("kill test H (offline: safety checks only)", { timeout: 60_000 }, () =>
     expect(text.split("\n").filter((l) => /^(r|w)\d /.test(l))).toHaveLength(10);
     expect(text).not.toMatch(/rejected:/); // the fixed rule never makes a rejected call
     expect(text).not.toMatch(/tokens:/); // only shown in model mode
+  });
+});
+
+describe("kill test H --save / --replay / --trace", () => {
+  it("callsFromSteps keeps the agent's own calls and drops the loop's forced stops and model errors", () => {
+    const base = { agent: "skeptic" as const, claimId: "r2", tokens: 0, costUsd: 0, latencyMs: 0 };
+    const steps: AgentStep[] = [
+      { ...base, n: 1, action: "rejected", args: { camera_id: "B", start_s: 18, end_s: 21, crop: "full", reason: "edge" }, rejectionReason: "Clip must overlap…" },
+      { ...base, n: 2, action: "rejected", args: { reason: 'Unparsed inspect_window call: {"camera_id":"Z"}' }, rejectionReason: "Invalid…" },
+      { ...base, n: 3, action: "inspect_window", args: { camera_id: "A", start_s: 21, end_s: 24, crop: "entity", reason: "look" } },
+      { ...base, n: 4, action: "stop", args: { reason: "Forced stop: no follow-ups left (2 of 2 checks used)." } },
+      { ...base, n: 5, action: "rejected", args: { reason: "model unavailable: 503" }, rejectionReason: "model unavailable: 503" },
+      { ...base, n: 6, action: "stop", args: { reason: "Done." }, implicitStop: true },
+    ];
+    expect(callsFromSteps(steps)).toEqual([
+      { tool: "inspect_window", camera: "B", start: 18, end: 21, crop: "full", reason: "edge" },
+      { tool: "unparsed", raw: 'Unparsed inspect_window call: {"camera_id":"Z"}' },
+      { tool: "inspect_window", camera: "A", start: 21, end: 24, crop: "entity", reason: "look" },
+      { tool: "stop", reason: "Done.", implicit: true },
+    ]);
+  });
+
+  it("replaying the saved calls of a run reproduces it exactly", async () => {
+    const original = await runKillTestH("offline");
+    const saved = savedCallsOf(original);
+    expect(Object.keys(saved.claims)).toEqual(CLAIMS.map((c) => c.id));
+    expect(saved.claims.r2).toEqual([
+      expect.objectContaining({ tool: "inspect_window" }),
+      expect.objectContaining({ tool: "inspect_window" }),
+    ]);
+    const replayed = await runKillTestH("replay", replayTurn(JSON.parse(JSON.stringify(saved)) as SavedCalls));
+    expect(replayed.label).toBe("H replay (saved calls)");
+    expect(replayed.rows.map(({ claimId, final, steps, calls }) => ({ claimId, final, steps, calls }))).toEqual(
+      original.rows.map(({ claimId, final, steps, calls }) => ({ claimId, final, steps, calls })),
+    );
+  });
+
+  it("a replayed unparsed call is rejected again, and running out of calls stops", async () => {
+    const saved: SavedCalls = { savedAt: "", mode: "model", claims: { r1: [{ tool: "unparsed", raw: 'Unparsed inspect_window call: {"camera_id":"Z"}' }] } };
+    const r = await runKillTestH("replay", replayTurn(saved));
+    expect(r.rows.find((x) => x.claimId === "r1")).toMatchObject({ steps: "rejected, stop" });
+    expect(r.rows.find((x) => x.claimId === "r1")!.rejections[0]!.reason).toMatch(/camera_id/);
+    expect(r.rows.find((x) => x.claimId === "r3")!.steps).toBe("stop"); // no saved calls
+  });
+
+  it("traces r2 step by step: a usable clip past the claim window replaces the audit (0.935 -> 0.880) and r2 loses Contradicted", async () => {
+    const saved: SavedCalls = {
+      savedAt: "",
+      mode: "replay",
+      claims: {
+        r2: [
+          { tool: "inspect_window", camera: "A", start: 22, end: 26, crop: "entity", reason: "after the move" },
+          { tool: "inspect_window", camera: "B", start: 21, end: 24, crop: "entity", reason: "B" },
+        ],
+      },
+    };
+    const r = await runKillTestH("replay", replayTurn(saved), { trace: "r2" });
+    const t = r.trace!.join("\n");
+    expect(t).toMatch(/^Trace r2: "Sam put the blue cup in zone D", claim window 21–24 s, starts Contradicted/);
+    expect(t).toMatch(/step 1: inspect_window \{"camera_id":"A","start_s":22,"end_s":26/);
+    expect(t).toMatch(/fake checkWindow A 22–26 s \(entity\) -> A 22–26 s vis 0\.907 sup 0\.049 con 0\.880/);
+    expect(t).toMatch(/audit before: support 0\.049 contradict 0\.935/);
+    expect(t).toMatch(/audit after: {2}support 0\.049 contradict 0\.880 .*\(REPLACED by this clip's audit\)/);
+    expect(t).toMatch(/verdict\(\) -> Insufficient/);
+    expect(t).toMatch(/audit contradict ≥ 0\.9 ✗ \(0\.880\)/);
+    expect(t).toMatch(/\(kept: clip not usable\)/); // step 2: B is blocked, the audit stays
+    expect(t).toMatch(/final: Insufficient/);
+    // Same pass/fail rules: a right label changed.
+    expect(r.rightChanged).toBeGreaterThanOrEqual(1);
+    expect(r.pass).toBe(false);
+    expect(formatReport(r)).toContain("Trace r2:");
   });
 });

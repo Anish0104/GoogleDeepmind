@@ -10,7 +10,12 @@ import type { AgentMenu, AgentStep, Claim, ClaimResult, CostRecord, Evidence, Sc
 import { INSPECT_WINDOW_DESCRIPTION, SYSTEM_PROMPTS } from "@/lib/agent/prompts";
 import { runAgent } from "@/lib/agent/loop";
 import { newSession } from "@/lib/agent/environment";
-import { createManagedTurn, type InteractionsClient, type ManagedCreateParams } from "@/lib/agent/managed-turn";
+import {
+  createManagedTurn,
+  resetPriceWarningForTests,
+  type InteractionsClient,
+  type ManagedCreateParams,
+} from "@/lib/agent/managed-turn";
 import { startAgent } from "@/lib/agent/start";
 import type { ModelReply, StandinModel } from "@/lib/agent/standin";
 
@@ -367,16 +372,21 @@ describe("createManagedTurn", () => {
     ]);
   });
 
-  it("logs $0 with one warning when MANAGED_PRICE_* are unset", async () => {
+  it("logs $0 with one warning per process (not per run) when MANAGED_PRICE_* are unset", async () => {
+    resetPriceWarningForTests();
     const warn = quiet();
     const client = fakeClient([requiresAction("v1_r1", [call("call_1", B_10_13)]), completed("v1_r2", PROBE_TEXT)]);
     const { turn } = turnWith(client);
     const menu = await loadMenu();
     await turn({ agent: "investigator", menu, history: [] });
     await turn({ agent: "investigator", menu: { ...menu, followUpsLeft: 1 }, history: [stepFor()] });
+    // A second run (a fresh turn function, as for the next claim) does not warn again.
+    const { turn: nextRun } = turnWith(fakeClient([completed("v1_r9", "Done.")]));
+    await nextRun({ agent: "skeptic", menu: { ...menu, agent: "skeptic" }, history: [] });
 
     expect((await readLog()).map((r) => [r.usd, r.cachedTokens])).toEqual([
       [0, 0],
+      [0, 3463],
       [0, 3463],
     ]);
     expect(warn.mock.calls.filter((c) => /MANAGED_PRICE/.test(String(c[0])))).toHaveLength(1);
