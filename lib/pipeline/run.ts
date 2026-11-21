@@ -3,6 +3,8 @@
 //
 // Order: claims -> probe -> perceive (Dev 1's perceiveScene(): sync -> slice -> scout -> lattice) -> per claim
 // (evidence -> pickCitation -> audit -> verdict -> saveResult) -> stills.json -> agents.
+// From the manifest, perceive gets presynced (skip sync, zero offsets, no sync.json), questions
+// (QUESTION_SETS[questionSet] instead of scout's) and roi (crop slices to motion), each only when set.
 // - claims.json is written by Dev 2's account route; missing or empty fails stage "claims" before any work.
 // - probe records each included camera's recording (as a path relative to the scene folder) and the shortest
 //   duration into manifest.json. Stored files are resolved through scenePath before any stage reads them.
@@ -23,6 +25,7 @@ import type { Slice } from "@/lib/capture/slice";
 import { evidenceFor } from "@/lib/inference/evidence";
 import { verdict } from "@/lib/inference/verdict";
 import { perceiveScene, type PerceiveOptions, type PerceiveResult } from "@/lib/perception/perceive";
+import { QUESTION_SETS } from "@/lib/perception/questionSets";
 import { loadManifest, NotFoundError, readJson, saveResult, scenePath, writeJson } from "@/lib/store/scene";
 import { audit } from "@/lib/truth/auditor";
 import { AuditUnavailableError } from "@/lib/truth/errors";
@@ -213,12 +216,25 @@ export async function runPipeline(sceneId: string, deps: PipelineDeps): Promise<
 
     // perceive: Dev 1's sync -> slice -> scout -> lattice in one call.
     await enter("perceive");
+    let questionSet: PerceiveOptions["questions"];
+    if (updated.questionSet !== undefined) {
+      if (!Object.hasOwn(QUESTION_SETS, updated.questionSet)) {
+        throw new StageError(`Unknown question set "${updated.questionSet}". Known: ${Object.keys(QUESTION_SETS).join(", ")}.`);
+      }
+      questionSet = QUESTION_SETS[updated.questionSet];
+    }
+    const fromManifest: Pick<PerceiveOptions, "presynced" | "questions" | "roi"> = {
+      ...(updated.presynced !== undefined ? { presynced: updated.presynced } : {}),
+      ...(questionSet ? { questions: questionSet } : {}),
+      ...(updated.roi !== undefined ? { roi: updated.roi } : {}),
+    };
     await d.assertBudget();
     const grid: GridRow[] = [];
     let lastStep: string | undefined;
     try {
       await d.perceiveScene(sceneId, {
         ...d.perceiveOptions,
+        ...fromManifest,
         onStep: (step) => {
           lastStep = step;
         },

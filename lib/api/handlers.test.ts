@@ -145,7 +145,26 @@ describe("handleSceneStart", () => {
     expect(await loadManifest(sceneId)).toMatchObject({ sceneId, split: "demo", cameras: ["A", "B"], plannedOcclusion: true });
   });
 
+  it("accepts presynced, questionSet and roi", async () => {
+    const { handleSceneStart } = await import("@/lib/api/handlers");
+    const { loadManifest } = await import("@/lib/store/scene");
+    const res = await handleSceneStart({
+      split: "dev",
+      room: "assembly101",
+      cameras: ["A", "B", "C", "D"],
+      excludedCameras: [],
+      presynced: true,
+      questionSet: "warehouse",
+      roi: true,
+    });
+    expect(res.status).toBe(201);
+    const { sceneId } = res.body as { sceneId: string };
+    expect(await loadManifest(sceneId)).toMatchObject({ presynced: true, questionSet: "warehouse", roi: true });
+  });
+
   it.each([
+    ["unknown question set", { split: "dev", room: "r", cameras: ["A"], excludedCameras: [], questionSet: "kitchen" }],
+    ["non-boolean presynced", { split: "dev", room: "r", cameras: ["A"], excludedCameras: [], presynced: "yes" }],
     ["bad split", { split: "prod", room: "r", cameras: ["A"], excludedCameras: [] }],
     ["no cameras", { split: "dev", room: "r", cameras: [], excludedCameras: [] }],
     ["excluded camera not in scene", { split: "dev", room: "r", cameras: ["A"], excludedCameras: ["B"] }],

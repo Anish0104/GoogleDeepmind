@@ -70,6 +70,9 @@ const SceneStartSchema = z.object({
   cameras: z.array(Camera).min(1),
   excludedCameras: z.array(Camera).default([]),
   plannedOcclusion: z.boolean().optional(),
+  presynced: z.boolean().optional(),
+  questionSet: z.string().min(1).optional(), // checked against QUESTION_SETS by createScene()
+  roi: z.boolean().optional(),
 });
 
 /** Creates manifest.json for a new scene. files and durationS are filled in later by the pipeline's probe stage. */

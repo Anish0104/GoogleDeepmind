@@ -18,6 +18,7 @@ import type {
 } from "@/lib/types";
 import { runPipeline, startPipeline, isSceneLocked, type PipelineDeps } from "@/lib/pipeline/run";
 import type { PerceiveOptions, PerceiveResult } from "@/lib/perception/perceive";
+import { QUESTION_SETS } from "@/lib/perception/questionSets";
 
 const SCENE = "s1";
 const manifest: SceneManifest = {
@@ -65,6 +66,8 @@ const slice = (camera: CameraId, t: number): Slice => ({
 
 interface Opts {
   claims?: Claim[];
+  /** Extra manifest fields as stored on disk (presynced, questionSet, roi). */
+  manifest?: Partial<SceneManifest>;
   storedFiles?: SceneManifest["files"];
   recordingOutside?: CameraId;
   missingRecording?: CameraId;
@@ -86,7 +89,7 @@ function setup(o: Opts = {}) {
   };
   let nextBudgetStage = "";
   const deps = {
-    loadManifest: vi.fn(async () => ({ ...structuredClone(manifest), files: o.storedFiles ?? {} })),
+    loadManifest: vi.fn(async () => ({ ...structuredClone(manifest), files: o.storedFiles ?? {}, ...o.manifest })),
     scenePath: (id: string, file?: string) => (file ? `/abs/data/scenes/${id}/${file}` : `/abs/data/scenes/${id}`),
     loadClaims: vi.fn(async () => {
       calls.push("claims");
@@ -113,7 +116,7 @@ function setup(o: Opts = {}) {
       opts.onRows?.([row("A"), row("B")]);
       opts.onRows?.([row("D")]);
       opts.onStep?.("lattice", "3 rows");
-      return { sync: [], slices: 16, slicesUsed: 16, entities: 1, questions: 1, rows: 3 };
+      return { presynced: opts.presynced ?? false, sync: [], slices: 16, slicesUsed: 16, entities: 1, questions: 1, rows: 3 };
     }),
     loadQuestions: vi.fn(async () => {
       calls.push("questions");
@@ -303,6 +306,38 @@ describe("runPipeline", () => {
     expect(await runPipeline(SCENE, deps)).toMatchObject({ status: "failed", stage: "perceive", error });
   });
 
+  it("presynced: true — passes presynced, the manifest's question set and roi to perceiveScene, and the run completes", async () => {
+    const { deps, writes } = setup({ manifest: { presynced: true, questionSet: "warehouse", roi: true } });
+    const final = await runPipeline(SCENE, deps);
+
+    expect(final.status).toBe("done");
+    const opts = deps.perceiveScene.mock.calls[0]![1];
+    expect(opts.presynced).toBe(true);
+    expect(opts.questions).toBe(QUESTION_SETS.warehouse);
+    expect(opts.roi).toBe(true);
+    // The probe stage rewrites manifest.json before perceive reads it: the flags must survive.
+    expect(writes.find((w) => w.file === "manifest.json")?.data).toMatchObject({ presynced: true, questionSet: "warehouse", roi: true });
+  });
+
+  it("a scene without those fields passes none of them (perceiveScene keeps its own defaults)", async () => {
+    const { deps } = setup();
+    await runPipeline(SCENE, deps);
+    const opts = deps.perceiveScene.mock.calls[0]![1];
+    expect(opts).not.toHaveProperty("presynced");
+    expect(opts).not.toHaveProperty("questions");
+    expect(opts).not.toHaveProperty("roi");
+  });
+
+  it("an unknown question set in a hand-edited manifest fails stage perceive before calling it", async () => {
+    const { deps } = setup({ manifest: { questionSet: "kitchen" } });
+    expect(await runPipeline(SCENE, deps)).toMatchObject({
+      status: "failed",
+      stage: "perceive",
+      error: expect.stringMatching(/Unknown question set "kitchen".*warehouse/),
+    });
+    expect(deps.perceiveScene).not.toHaveBeenCalled();
+  });
+
   it("passes perceiveScene's supported options through (maxSlicesPerCamera), plus its own onStep/onRows", async () => {
     const { deps } = setup();
     await runPipeline(SCENE, { ...deps, perceiveOptions: { maxSlicesPerCamera: 3 } });
@@ -351,7 +386,7 @@ describe("startPipeline (one run per scene)", () => {
     let release!: () => void;
     deps.perceiveScene.mockImplementationOnce(async () => {
       await new Promise<void>((r) => (release = r));
-      return { sync: [], slices: 0, slicesUsed: 0, entities: 0, questions: 0, rows: 0 };
+      return { presynced: false, sync: [], slices: 0, slicesUsed: 0, entities: 0, questions: 0, rows: 0 };
     });
 
     const first = startPipeline(SCENE, deps);
@@ -372,5 +407,28 @@ describe("startPipeline (one run per scene)", () => {
     const r = startPipeline("s-queued", { ...deps, loadClaims: async () => [] });
     if (r.started) await r.done;
     expect(runs()[0]).toEqual({ status: "queued", stage: "queued", startedAt: "2026-11-21T16:00:00.000Z" });
+  });
+});
+
+describe("presynced path: readers of sync.json (real Dev 1 localTime, temp DATA_DIR)", () => {
+  it("with no sync.json (presynced writes none), clip times map to local times with zero offsets", async () => {
+    const { mkdtemp, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const path = await import("node:path");
+    const dir = await mkdtemp(path.join(tmpdir(), "rashomon-presync-"));
+    const prev = process.env.DATA_DIR;
+    process.env.DATA_DIR = dir;
+    vi.resetModules();
+    try {
+      const store = await import("@/lib/store/scene");
+      const { localTime } = await import("@/lib/capture/sync");
+      await store.createScene({ split: "dev", room: "r", cameras: ["A", "B"], excludedCameras: [], presynced: true }, { id: "pre" });
+      expect(await localTime("pre", "A", 12.5)).toBe(12.5); // what checkWindow() uses to cut clips
+      expect(await localTime("pre", "B", 0)).toBe(0);
+    } finally {
+      if (prev === undefined) delete process.env.DATA_DIR;
+      else process.env.DATA_DIR = prev;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

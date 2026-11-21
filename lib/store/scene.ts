@@ -4,6 +4,7 @@ import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/prom
 import path from "node:path";
 import { z } from "zod";
 import { DATA_DIR } from "@/lib/config";
+import { QUESTION_SETS } from "@/lib/perception/questionSets";
 import type { CameraId, ClaimResult, SceneManifest } from "@/lib/types";
 
 const SCENE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -22,6 +23,9 @@ export const SceneManifestSchema = z.object({
   durationS: z.number().finite().nonnegative(),
   createdAt: z.string(),
   plannedOcclusion: z.boolean(),
+  presynced: z.boolean().optional(),
+  questionSet: z.string().optional(),
+  roi: z.boolean().optional(),
 }) satisfies z.ZodType<SceneManifest>;
 
 // ---------- paths ----------
@@ -142,10 +146,13 @@ function checkCameras(cameras: CameraId[], excluded: CameraId[]): void {
 /** Creates DATA_DIR/scenes/<id>/manifest.json. Refuses to overwrite an existing scene. */
 export async function createScene(
   input: Pick<SceneManifest, "split" | "room" | "cameras" | "excludedCameras"> &
-    Partial<Pick<SceneManifest, "plannedOcclusion">>,
+    Partial<Pick<SceneManifest, "plannedOcclusion" | "presynced" | "questionSet" | "roi">>,
   opts: CreateSceneOptions = {},
 ): Promise<SceneManifest> {
   checkCameras(input.cameras, input.excludedCameras);
+  if (input.questionSet !== undefined && !Object.hasOwn(QUESTION_SETS, input.questionSet)) {
+    throw new Error(`Unknown question set "${input.questionSet}". Known: ${Object.keys(QUESTION_SETS).join(", ")}.`);
+  }
   const now = opts.now ?? new Date();
   const manifest = SceneManifestSchema.parse({
     sceneId: opts.id ?? newSceneId(now),
@@ -157,6 +164,9 @@ export async function createScene(
     durationS: 0,
     createdAt: now.toISOString(),
     plannedOcclusion: input.plannedOcclusion ?? false,
+    ...(input.presynced !== undefined ? { presynced: input.presynced } : {}),
+    ...(input.questionSet !== undefined ? { questionSet: input.questionSet } : {}),
+    ...(input.roi !== undefined ? { roi: input.roi } : {}),
   });
   const full = scenePath(manifest.sceneId, MANIFEST_FILE);
   await mkdir(path.dirname(full), { recursive: true });

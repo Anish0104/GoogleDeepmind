@@ -1,5 +1,6 @@
 // OWNER: Dev 3 (contract keeper). The contract between all four devs.
 // Changes need a quick OK from the group. Copied from the Implementation Plan, section 5.
+import type { QUESTION_SETS } from "@/lib/perception/questionSets";
 
 // ---------- capture ----------
 export type CameraId = "A" | "B" | "C" | "D";
@@ -14,6 +15,9 @@ export interface SceneManifest {
   durationS: number;
   createdAt: string;
   plannedOcclusion: boolean; // from scriptgen, never shown to agents
+  presynced?: boolean; // footage already synchronised (e.g. Assembly101): perceive skips sync, zero offsets
+  questionSet?: keyof typeof QUESTION_SETS; // a fixed question set (e.g. "warehouse") instead of scout's questions
+  roi?: boolean; // crop slices to where things move in each camera
 }
 
 export interface SyncResult {

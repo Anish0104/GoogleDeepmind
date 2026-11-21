@@ -85,6 +85,32 @@ describe("createScene", () => {
     expect((await store.loadManifest("s1")).plannedOcclusion).toBe(true);
   });
 
+  it("accepts presynced, questionSet and roi, and loadManifest keeps them", async () => {
+    const m = await store.createScene({ ...input, presynced: true, questionSet: "warehouse", roi: true }, { id: "s1" });
+    expect(m).toMatchObject({ presynced: true, questionSet: "warehouse", roi: true });
+    expect(await store.loadManifest("s1")).toMatchObject({ presynced: true, questionSet: "warehouse", roi: true });
+  });
+
+  it("leaves the new fields out when not given", async () => {
+    const m = await store.createScene(input, { id: "s1" });
+    expect(m).not.toHaveProperty("presynced");
+    expect(m).not.toHaveProperty("questionSet");
+    expect(m).not.toHaveProperty("roi");
+  });
+
+  it("rejects an unknown question set, naming the known ones", async () => {
+    await expect(store.createScene({ ...input, questionSet: "kitchen" }, { id: "s1" })).rejects.toThrow(
+      /Unknown question set "kitchen".*warehouse/,
+    );
+  });
+
+  it("a hand-written presynced flag in manifest.json survives loadManifest (perceiveScene reads it from there)", async () => {
+    await store.createScene(input, { id: "s1" });
+    const raw = JSON.parse(await readFile(sceneFile("s1", "manifest.json"), "utf8"));
+    await writeFile(sceneFile("s1", "manifest.json"), JSON.stringify({ ...raw, presynced: true }));
+    expect((await store.loadManifest("s1")).presynced).toBe(true);
+  });
+
   it("generates a unique, path-safe id by default", async () => {
     const a = await store.createScene(input);
     const b = await store.createScene(input);
