@@ -147,3 +147,86 @@ export function scoreKillTestA(labeled: Labeled[]): KillTestAResult {
   }
   return { state: s, visible: v, perQuestion, pass: failures.length === 0, failures };
 }
+
+// ---------- calibration (Platt scaling) ----------
+// The grid ranks well but is underconfident. A Platt curve p' = sigmoid(a * logit(p) + b), fitted per
+// question on scenes with answer keys, rescales confidence without changing the order of answers.
+
+export interface PlattModel {
+  a: number;
+  b: number;
+  /** Samples it was fitted on. */
+  n: number;
+}
+
+const IDENTITY = (n: number): PlattModel => ({ a: 1, b: 0, n });
+const EPS_P = 1e-4;
+const logit = (p: number) => {
+  const q = Math.min(1 - EPS_P, Math.max(EPS_P, p));
+  return Math.log(q / (1 - q));
+};
+const sigmoid = (z: number) => 1 / (1 + Math.exp(-z));
+/** Fewer samples, or fewer than this many of either answer, and the curve stays the identity. */
+export const MIN_PLATT_SAMPLES = 20;
+const MIN_PER_CLASS = 5;
+/**
+ * The less common answer must be at least this share of the data. On lopsided data (the SDG forklift
+ * moves in ~96% of slices) a curve mostly learns "usually yes", which would wrongly push a stopped
+ * forklift towards "moving" on new footage. Those questions keep the model's own answers.
+ */
+export const MIN_MINORITY_SHARE = 0.2;
+
+/** Logistic regression of y on logit(p), by Newton's method with a little L2 (keeps it finite). */
+export function fitPlatt(ps: Pair[]): PlattModel {
+  const pos = ps.filter((x) => x.y === 1).length;
+  const minority = Math.min(pos, ps.length - pos);
+  if (ps.length < MIN_PLATT_SAMPLES || minority < MIN_PER_CLASS || minority < MIN_MINORITY_SHARE * ps.length) return IDENTITY(ps.length);
+  const xs = ps.map((x) => logit(x.p));
+  let a = 1;
+  let b = 0;
+  const lambda = 1e-3;
+  for (let it = 0; it < 100; it++) {
+    let ga = lambda * (a - 1);
+    let gb = 0;
+    let haa = lambda;
+    let hab = 0;
+    let hbb = 1e-9;
+    xs.forEach((x, i) => {
+      const p = sigmoid(a * x + b);
+      const r = p - ps[i]!.y;
+      const w = p * (1 - p);
+      ga += r * x;
+      gb += r;
+      haa += w * x * x;
+      hab += w * x;
+      hbb += w;
+    });
+    const det = haa * hbb - hab * hab;
+    if (!(det > 0)) break;
+    const da = (hbb * ga - hab * gb) / det;
+    const db = (haa * gb - hab * ga) / det;
+    a -= da;
+    b -= db;
+    if (Math.abs(da) + Math.abs(db) < 1e-9) break;
+  }
+  return Number.isFinite(a) && Number.isFinite(b) && a > 0 ? { a, b, n: ps.length } : IDENTITY(ps.length);
+}
+
+export function applyPlatt(p: number, m: Pick<PlattModel, "a" | "b">): number {
+  return sigmoid(m.a * logit(p) + m.b);
+}
+
+/** One curve per question id. */
+export function fitPerQuestion(labeled: Labeled[]): Record<string, PlattModel> {
+  const ids = [...new Set(labeled.map((l) => l.questionId))].sort();
+  return Object.fromEntries(ids.map((id) => [id, fitPlatt(labeled.filter((l) => l.questionId === id))]));
+}
+
+/** Each scene's answers calibrated with curves fitted on the OTHER scenes: an honest estimate for new footage. */
+export function leaveOneSceneOut(labeled: Labeled[]): Labeled[] {
+  const scenes = [...new Set(labeled.map((l) => l.sceneId))];
+  return scenes.flatMap((s) => {
+    const models = fitPerQuestion(labeled.filter((l) => l.sceneId !== s));
+    return labeled.filter((l) => l.sceneId === s).map((l) => (models[l.questionId] ? { ...l, p: applyPlatt(l.p, models[l.questionId]!) } : l));
+  });
+}

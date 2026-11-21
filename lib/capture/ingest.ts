@@ -118,3 +118,83 @@ export async function finalizeCamera(sceneId: string, rawCamera: CameraId): Prom
   const { durationS } = await probe(file);
   return { file, chunks: chunks.length, missing, durationS, remuxed };
 }
+
+// ---------- whole-file upload (one video per camera, after the scene) ----------
+
+export const MAX_RECORDING_BYTES = 500 * 1024 * 1024;
+
+/** Container of an uploaded recording, from its MIME type or, if the browser sent none, its file name. */
+function recordingKind(mimeType: string, fileName?: string): "webm" | "mp4" | "mov" {
+  const base = mimeType.split(";")[0]!.trim().toLowerCase();
+  if (base === "video/webm") return "webm";
+  if (base === "video/mp4") return "mp4";
+  if (base === "video/quicktime") return "mov";
+  if (base === "" || base === "application/octet-stream") {
+    const ext = path.extname(fileName ?? "").slice(1).toLowerCase();
+    if (ext === "webm" || ext === "mp4" || ext === "mov") return ext;
+  }
+  throw new IngestError(`unsupported video type ${JSON.stringify(mimeType || fileName || "")}; expected webm, mp4 or mov`);
+}
+
+export interface RecordingInput {
+  sceneId: string;
+  camera: CameraId;
+  data: Uint8Array;
+  mimeType: string;
+  fileName?: string;
+}
+
+export interface RecordingResult {
+  file: string;
+  durationS: number;
+  hasAudio: boolean;
+  /** Set when the recording cannot be clap-synced (no audio) and the scene is not presynced. */
+  warning?: string;
+}
+
+/**
+ * Saves a whole recording as the camera's cam-<X>.webm or cam-<X>.mp4 (a .mov is rewritten to mp4
+ * without re-encoding), the same file the chunk upload produces, so sync and perception run unchanged.
+ * The file is checked to be a playable video before it replaces any earlier recording of that camera.
+ */
+export async function saveRecording(input: RecordingInput): Promise<RecordingResult> {
+  const camera = CameraSchema.parse(input.camera);
+  if (input.data.byteLength === 0) throw new IngestError("empty file");
+  if (input.data.byteLength > MAX_RECORDING_BYTES) throw new IngestError(`file is over ${MAX_RECORDING_BYTES / 1024 / 1024} MB`);
+  const kind = recordingKind(input.mimeType, input.fileName);
+  await checkCamera(input.sceneId, camera);
+  const manifest = await loadManifest(input.sceneId);
+
+  const dir = scenePath(input.sceneId, "uploads");
+  await mkdir(dir, { recursive: true });
+  const stamp = `${process.pid}-${Date.now()}`;
+  const upload = path.join(dir, `cam-${camera}-${stamp}.${kind}`);
+  await writeFile(upload, input.data);
+  const ext = kind === "webm" ? "webm" : "mp4";
+  const staged = path.join(dir, `cam-${camera}-${stamp}.out.${ext}`);
+  try {
+    try {
+      await remux(upload, staged); // fixes the container (and turns .mov into .mp4)
+    } catch {
+      throw new IngestError("not a playable video (could not read the file)");
+    }
+    const info = await probe(staged).catch(() => null);
+    if (!info || info.width === undefined || !(info.durationS > 0)) throw new IngestError("not a playable video (no video track)");
+
+    const file = scenePath(input.sceneId, `cam-${camera}.${ext}`);
+    await rm(scenePath(input.sceneId, `cam-${camera}.${ext === "webm" ? "mp4" : "webm"}`), { force: true });
+    await rename(staged, file);
+    const presynced = (manifest as { presynced?: boolean }).presynced === true;
+    return {
+      file,
+      durationS: info.durationS,
+      hasAudio: info.hasAudio,
+      ...(!info.hasAudio && !presynced
+        ? { warning: "no audio track: clap sync needs one, so this camera can only be synced by the screen flash" }
+        : {}),
+    };
+  } finally {
+    await rm(upload, { force: true });
+    await rm(staged, { force: true });
+  }
+}

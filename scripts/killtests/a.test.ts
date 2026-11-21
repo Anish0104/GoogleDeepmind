@@ -9,7 +9,7 @@ const dataDir = mkdtempSync(path.join(tmpdir(), "rashomon-killa-"));
 process.env.DATA_DIR = dataDir;
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
 
-const { formatReport, readGrid, runKillTestA } = await import("./a");
+const { calibrationSource, formatReport, readGrid, runKillTestA } = await import("./a");
 
 const yes = "yes";
 function writeScene(id: string, rows: GridRow[] | null) {
@@ -73,5 +73,26 @@ describe("runKillTestA", () => {
     expect(text).toMatch(/PASS/);
     expect(text).toMatch(/forklift:state:near_worker/);
     expect(text).toMatch(/not perceived: 1/);
+    expect(text).toMatch(/Raw model answers/);
+    expect(text).toMatch(/Calibrated/);
+    expect(res.calibrated.state.n).toBe(2);
+    expect(Object.keys(res.models)).toContain("forklift:state:near_worker");
+  });
+
+  it("scores the raw file when the grid was calibrated", async () => {
+    writeScene("sdg_nm_3", [row("sdg_nm_3", "A", 0, "worker:visible:yes", 0.99)]);
+    writeFileSync(path.join(dataDir, "scenes", "sdg_nm_3", "grid.raw.jsonl"), JSON.stringify(row("sdg_nm_3", "A", 0, "worker:visible:yes", 0.2)) + "\n");
+    const res = await runKillTestA({});
+    const v = res.result.perQuestion.find((q) => q.questionId === "worker:visible:yes")!;
+    expect(v.accuracy).toBeLessThan(1); // the raw 0.2 was scored, not the calibrated 0.99
+  });
+});
+
+describe("calibrationSource", () => {
+  it("writes a TypeScript module with the fitted numbers only", () => {
+    const src = calibrationSource({ "worker:state:dodging": { a: 2.34567, b: -0.1, n: 120 } }, ["s1", "s2"]);
+    expect(src).toContain("GENERATED");
+    expect(src).toContain('"worker:state:dodging": { a: 2.3457, b: -0.1, n: 120 }');
+    expect(src).not.toMatch(/s1|truth/i);
   });
 });
