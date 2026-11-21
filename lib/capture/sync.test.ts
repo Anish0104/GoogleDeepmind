@@ -9,7 +9,7 @@ import { HAS_FFMPEG } from "@/lib/video/testing";
 const dataDir = mkdtempSync(path.join(tmpdir(), "rashomon-sync-"));
 process.env.DATA_DIR = dataDir;
 
-const { bestLag, findFlashes, localTime, parseWav, syncScene } = await import("@/lib/capture/sync");
+const { bestLag, estimateDrift, findFlashes, localTime, parseWav, syncScene } = await import("@/lib/capture/sync");
 const { makeSyncFixture } = await import("@/lib/capture/synthetic");
 const { createScene } = await import("@/lib/store/scene");
 
@@ -38,6 +38,18 @@ describe("bestLag", () => {
     const r = bestLag(a, b, -100, 100);
     expect(r.lag).toBe(30);
     expect(r.score).toBeGreaterThan(0.99);
+  });
+});
+
+describe("estimateDrift", () => {
+  it("is seconds of extra offset per minute between the opening and closing flash", () => {
+    expect(estimateDrift(1.0, 1.3, 60)).toBeCloseTo(0.3, 6);
+    expect(estimateDrift(1.0, 0.8, 30)).toBeCloseTo(-0.4, 6);
+  });
+
+  it("ignores a change smaller than one frame of a 15 fps video (frame quantisation, not drift)", () => {
+    expect(estimateDrift(1.1, 1.1 - 1 / 15, 21.3)).toBe(0);
+    expect(estimateDrift(0.4, 0.45, 21.3)).toBe(0);
   });
 });
 

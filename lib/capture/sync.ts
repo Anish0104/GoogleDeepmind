@@ -25,6 +25,7 @@ const FLASH_JUMP = 50; // luma rise (0-255) in one cell between frames
 const FLASH_RETURN = 25; // must fall back within this of the pre-flash level...
 const FLASH_MAX_S = 0.8; // ...within this long, or it is a lighting change, not a flash
 const MIN_DRIFT_SPAN_S = 5;
+const MIN_DRIFT_CHANGE_S = 0.1; // one frame at 15 fps (plus slack): smaller changes are frame quantisation
 
 // ---------- audio ----------
 
@@ -141,6 +142,13 @@ export function findFlashes(frames: Uint8Array[], fps: number): number[] {
   return times;
 }
 
+/** Drift in s/min from the offsets at the opening and closing flash; 0 below one frame's change. */
+export function estimateDrift(startOffsetS: number, endOffsetS: number, spanS: number): number {
+  const change = endOffsetS - startOffsetS;
+  if (Math.abs(change) < MIN_DRIFT_CHANGE_S || spanS <= 0) return 0;
+  return change / (spanS / 60);
+}
+
 // ---------- scene ----------
 
 interface CameraSignals {
@@ -194,7 +202,7 @@ function relate(ref: CameraSignals, cam: CameraSignals): SyncResult {
   if (flash !== null && refFirst !== undefined && refLast !== undefined && refLast - refFirst >= MIN_DRIFT_SPAN_S) {
     const camLast = nearest(cam.flashes, refLast + flash);
     if (camLast !== null && camLast !== camFirst && Math.abs(camLast - (refLast + flash)) <= 0.5) {
-      driftPerMin = (camLast - refLast - flash) / ((refLast - refFirst) / 60);
+      driftPerMin = estimateDrift(flash, camLast - refLast, refLast - refFirst);
     }
   }
   return { camera: cam.camera, offsetS: Math.round(offsetS * 1000) / 1000, driftPerMin, method };
