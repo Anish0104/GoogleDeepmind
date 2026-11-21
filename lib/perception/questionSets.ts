@@ -1,7 +1,8 @@
 // OWNER: Dev 1. Fixed, scene-specific question sets used instead of scout's generic mat questions.
 // Ids follow scout's "<entityId>:<predicate>:<value>" format so the grid and inference code trace
 // each row to its object, and every object has a "visible" question for pVisible.
-import type { Question } from "@/lib/types";
+import type { Entity, Question } from "@/lib/types";
+import type { Person } from "@/lib/perception/scout";
 
 const q = (entityId: string, predicate: Question["predicate"], value: string, text: string): Question => ({
   id: `${entityId}:${predicate}:${value.replace(/\s+/g, "_")}`,
@@ -64,3 +65,51 @@ export const QUESTION_SETS: Record<string, Question[]> = {
   warehouse: WAREHOUSE_QUESTIONS,
   "sdg-nearmiss": SDG_NEARMISS_QUESTIONS,
 };
+
+/**
+ * Each set's registry, written to entities.json / people.json instead of scout's, so the entity ids
+ * in questions.json match the ones Dev 2's grounding looks up. Descriptions are generic: appearance
+ * varies between runs.
+ */
+export const QUESTION_SET_ENTITIES: Record<string, Entity[]> = {
+  warehouse: [
+    { id: "pedestrian", description: "pedestrian: the person figure on the warehouse floor" },
+    { id: "forklift", description: "forklift with a mast and two forks", feature: "mast and forks" },
+  ],
+  "sdg-nearmiss": [
+    { id: "worker", description: "worker: the person standing on the warehouse floor" },
+    { id: "forklift", description: "forklift: a stand-up warehouse forklift with a mast and two forks", feature: "mast and forks" },
+  ],
+};
+
+export const QUESTION_SET_PEOPLE: Record<string, Person[]> = {
+  warehouse: [{ id: "pedestrian", description: "the pedestrian on the warehouse floor" }],
+  "sdg-nearmiss": [{ id: "worker", description: "the worker on the warehouse floor" }],
+};
+
+/** Question ids each set asks over a ~2 s clip; perceiveScene() passes them to the lattice as contextQuestionIds. */
+export const QUESTION_SET_MOTION_IDS: Record<string, string[]> = {
+  warehouse: WAREHOUSE_MOTION_QUESTION_IDS,
+  "sdg-nearmiss": SDG_NEARMISS_MOTION_QUESTION_IDS,
+};
+
+export interface QuestionSet {
+  name: string;
+  questions: Question[];
+  entities: Entity[];
+  people: Person[];
+  motionIds: string[];
+}
+
+/** Everything perceiveScene() needs for a named set; throws on an unknown name. */
+export function questionSet(name: string): QuestionSet {
+  const questions = QUESTION_SETS[name];
+  if (!questions) throw new Error(`unknown question set "${name}" (known: ${Object.keys(QUESTION_SETS).join(", ")})`);
+  return {
+    name,
+    questions,
+    entities: QUESTION_SET_ENTITIES[name] ?? [],
+    people: QUESTION_SET_PEOPLE[name] ?? [],
+    motionIds: QUESTION_SET_MOTION_IDS[name] ?? [],
+  };
+}

@@ -14,7 +14,6 @@ import { DATA_DIR } from "@/lib/config";
 import { readSdgTruth } from "@/lib/capture/sdgWarehouse";
 import { joinWithTruth, scoreKillTestA, KILL_TEST_A, type KillTestAResult } from "@/lib/perception/calibration";
 import { perceiveScene } from "@/lib/perception/perceive";
-import { SDG_NEARMISS_MOTION_QUESTION_IDS, SDG_NEARMISS_QUESTIONS } from "@/lib/perception/questionSets";
 
 const GridRowSchema = z.object({
   sceneId: z.string(),
@@ -63,12 +62,7 @@ export async function runKillTestA(opts: KillTestAOptions): Promise<KillTestARun
     if (existsSync(grid(id)) || !existsSync(path.resolve(DATA_DIR, "scenes", id, "manifest.json"))) continue;
     budget--;
     log(`perceiving ${id}...`);
-    await perceiveScene(id, {
-      presynced: true,
-      questions: SDG_NEARMISS_QUESTIONS,
-      contextQuestionIds: SDG_NEARMISS_MOTION_QUESTION_IDS,
-      onStep: (s, d) => log(`  ${s}: ${d}`),
-    });
+    await perceiveScene(id, { presynced: true, questionSet: "sdg-nearmiss", onStep: (s, d) => log(`  ${s}: ${d}`) });
   }
 
   const scenes = ids.filter((id) => existsSync(grid(id)));
