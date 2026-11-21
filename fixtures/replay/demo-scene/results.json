@@ -1,0 +1,234 @@
+[
+  {
+    "claimId": "c1",
+    "verdict": "Supported",
+    "evidence": [
+      {
+        "camera": "A",
+        "window": [
+          5,
+          9
+        ],
+        "visible": 0.9156439088972882,
+        "supports": 0.9432544772079368,
+        "contradicts": 0.041224002553092665,
+        "clipId": "grid:demo-scene:A:5-9",
+        "source": "initial"
+      },
+      {
+        "camera": "B",
+        "window": [
+          5,
+          9
+        ],
+        "visible": 0.9098498374228822,
+        "supports": 0.9428520151397679,
+        "contradicts": 0.03077592455995448,
+        "clipId": "grid:demo-scene:B:5-9",
+        "source": "initial"
+      },
+      {
+        "camera": "C",
+        "window": [
+          5,
+          9
+        ],
+        "visible": 0.8991435641954338,
+        "supports": 0.9475842710498266,
+        "contradicts": 0.03380539243993319,
+        "clipId": "grid:demo-scene:C:5-9",
+        "source": "initial"
+      }
+    ],
+    "audit": {
+      "supportScore": 0.9475842710498266,
+      "contradictScore": 0.03380539243993319,
+      "clipId": "grid:demo-scene:C:5-9"
+    },
+    "history": []
+  },
+  {
+    "claimId": "c2",
+    "verdict": "Supported",
+    "evidence": [
+      {
+        "camera": "A",
+        "window": [
+          15,
+          18
+        ],
+        "visible": 0.1026143500757392,
+        "supports": null,
+        "contradicts": null,
+        "clipId": "grid:demo-scene:A:15-18",
+        "source": "initial"
+      },
+      {
+        "camera": "B",
+        "window": [
+          15,
+          18
+        ],
+        "visible": 0.10652403974455027,
+        "supports": null,
+        "contradicts": null,
+        "clipId": "grid:demo-scene:B:15-18",
+        "source": "initial"
+      },
+      {
+        "camera": "C",
+        "window": [
+          15,
+          18
+        ],
+        "visible": 0.1141139666191263,
+        "supports": null,
+        "contradicts": null,
+        "clipId": "grid:demo-scene:C:15-18",
+        "source": "initial"
+      },
+      {
+        "camera": "C",
+        "window": [
+          15,
+          18
+        ],
+        "visible": 0.8975284570943557,
+        "supports": 0.9426380462833275,
+        "contradicts": 0.035533357505411166,
+        "clipId": "clip:demo-scene:C:15-18:entity",
+        "source": "investigator"
+      }
+    ],
+    "audit": {
+      "supportScore": 0.9426380462833275,
+      "contradictScore": 0.035533357505411166,
+      "clipId": "clip:demo-scene:C:15-18:entity"
+    },
+    "history": [
+      {
+        "from": "Insufficient",
+        "to": "Supported",
+        "by": "investigator",
+        "reason": "Camera C sees zone D from above; an entity crop may see past the person. (clip clip:demo-scene:C:15-18:entity)",
+        "at": "2026-11-21T15:05:00.000Z"
+      }
+    ]
+  },
+  {
+    "claimId": "c3",
+    "verdict": "Contradicted",
+    "evidence": [
+      {
+        "camera": "A",
+        "window": [
+          8,
+          11
+        ],
+        "visible": 0.9058828586120153,
+        "supports": 0.0496488005838891,
+        "contradicts": 0.8940812554946413,
+        "clipId": "grid:demo-scene:A:8-11",
+        "source": "initial"
+      },
+      {
+        "camera": "B",
+        "window": [
+          8,
+          11
+        ],
+        "visible": 0.9109728289396584,
+        "supports": 0.050964941808965776,
+        "contradicts": 0.9347100136253015,
+        "clipId": "grid:demo-scene:B:8-11",
+        "source": "initial"
+      },
+      {
+        "camera": "C",
+        "window": [
+          8,
+          11
+        ],
+        "visible": 0.9056635051947853,
+        "supports": 0.05104070393572986,
+        "contradicts": 0.9030568132842249,
+        "clipId": "grid:demo-scene:C:8-11",
+        "source": "initial"
+      },
+      {
+        "camera": "B",
+        "window": [
+          8,
+          11
+        ],
+        "visible": 0.9109728289396584,
+        "supports": 0.050964941808965776,
+        "contradicts": 0.9347100136253015,
+        "clipId": "clip:demo-scene:B:8-11:entity",
+        "source": "skeptic"
+      }
+    ],
+    "audit": {
+      "supportScore": 0.050964941808965776,
+      "contradictScore": 0.9347100136253015,
+      "clipId": "clip:demo-scene:B:8-11:entity"
+    },
+    "history": []
+  },
+  {
+    "claimId": "c4",
+    "verdict": "Insufficient",
+    "evidence": [
+      {
+        "camera": "A",
+        "window": [
+          23,
+          26
+        ],
+        "visible": 0.10016203099304653,
+        "supports": null,
+        "contradicts": null,
+        "clipId": "grid:demo-scene:A:23-26",
+        "source": "initial"
+      },
+      {
+        "camera": "B",
+        "window": [
+          23,
+          26
+        ],
+        "visible": 0.10271176277277108,
+        "supports": null,
+        "contradicts": null,
+        "clipId": "grid:demo-scene:B:23-26",
+        "source": "initial"
+      },
+      {
+        "camera": "C",
+        "window": [
+          23,
+          26
+        ],
+        "visible": 0.1061425184341262,
+        "supports": null,
+        "contradicts": null,
+        "clipId": "grid:demo-scene:C:23-26",
+        "source": "initial"
+      },
+      {
+        "camera": "A",
+        "window": [
+          23,
+          26
+        ],
+        "visible": 0.10016203099304653,
+        "supports": null,
+        "contradicts": null,
+        "clipId": "clip:demo-scene:A:23-26:entity",
+        "source": "investigator"
+      }
+    ],
+    "audit": null,
+    "history": []
+  }
+]

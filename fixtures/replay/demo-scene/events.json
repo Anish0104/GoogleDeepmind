@@ -1,0 +1,14 @@
+[
+  {
+    "entityId": "mug",
+    "from": "B",
+    "to": "C",
+    "t": 6,
+    "confidence": 0.8965770341200816,
+    "cameras": [
+      "A",
+      "B",
+      "C"
+    ]
+  }
+]
