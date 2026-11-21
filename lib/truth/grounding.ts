@@ -31,15 +31,22 @@ import type { Claim, Question } from "@/lib/types";
 import type { Person } from "@/lib/perception/scout";
 import { indexQuestions, normText, normValue, toZone } from "@/lib/inference/grid";
 import type { EvidenceTarget } from "@/lib/inference/evidence";
-import { stateForm } from "@/lib/truth/text";
+import { isNegated, isPersistent, isTemporallyOrdered, stateForm } from "@/lib/truth/text";
+import { oppositesOf, validExclusivePairs } from "@/lib/truth/exclusive";
 
 /** Raw scene files as loaded; each may be missing or malformed. */
 export interface SceneRegistry {
   entities?: unknown;
   people?: unknown;
   questions?: unknown;
+  /** Dev 1's registered exclusive state pairs ([questionId, questionId][]); validated against `questions`. */
+  exclusive?: unknown;
 }
 
+// Claims whose meaning a single state/location question cannot carry. Grading them on the plain
+// question would reverse ("it never touched me" graded as touching), drop ("stopped before reaching
+// the worker" graded on the stop alone) or weaken ("stayed clear" graded as "was clear at some moment")
+// part of the claim, so they stay ungrounded: kept in claims.json, Insufficient, no audit call.
 export type Resolution =
   | { status: "resolved"; id: string; via: "id" | "description" }
   | { status: "unresolved"; reason: string; candidates?: string[] };
@@ -188,8 +195,15 @@ export function resolveGrounding(claim: Claim, registry: SceneRegistry): ClaimGr
   };
 
   if (!action) return done(null, `action "${claim.action}" is not a canonical claim action`);
+  if (isNegated(claim.text))
+    return done(null, "claim contains negation; a negated claim is not graded as its positive form (needs a negation-aware claim schema)");
+  if (isTemporallyOrdered(claim.text))
+    return done(null, "claim states a temporal order between events; one state question cannot verify the order");
+  if (isPersistent(claim.text))
+    return done(null, "claim asserts a state persisted continuously; a point-in-time state question cannot verify persistence");
   if (entity.status !== "resolved") return done(null);
   const qs = questions.filter((q) => q.entityId === entity.id);
+  const pairs = validExclusivePairs(registry?.exclusive, questions);
   const of = (p: Question["predicate"]) => qs.filter((q) => q.predicate === p);
 
   const pick = (p: "location" | "heldBy" | "state", value: string): EvidenceTarget | string => {
@@ -199,8 +213,14 @@ export function resolveGrounding(claim: Claim, registry: SceneRegistry): ClaimGr
     const same = of(p).filter((q) => canon(q.value) === canon(value));
     if (same.length === 0) return `no ${p} question for "${value}" on ${entity.id}`;
     if (same.length > 1) return `several ${p} questions for "${value}" on ${entity.id}`;
-    const alternativeIds = p === "state" ? [] : of(p).filter((q) => q.id !== same[0]!.id).map((q) => q.id);
-    return { questionId: same[0]!.id, alternativeIds };
+    if (p === "state") {
+      // A state's only alternatives are its registered exclusive opposites (Dev 1), validated for this scene.
+      const opposites = oppositesOf(same[0]!.id, pairs).filter((id) => of("state").some((q) => q.id === id));
+      return opposites.length > 0
+        ? { questionId: same[0]!.id, alternativeIds: opposites, registeredExclusive: true }
+        : { questionId: same[0]!.id, alternativeIds: [] };
+    }
+    return { questionId: same[0]!.id, alternativeIds: of(p).filter((q) => q.id !== same[0]!.id).map((q) => q.id) };
   };
   /** A role that determines the target must map to this entity's heldBy question. */
   const holder = (r: Resolution | null): { r: Resolution | null; t: EvidenceTarget | null } => {

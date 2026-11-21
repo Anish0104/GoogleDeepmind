@@ -12,7 +12,9 @@
 //     (never precise) instead of being withheld. A model failure is 502: never an empty account.
 //  5. Per claim, in order:
 //     - a stored result already changed by an agent (history entry not by "initial") is kept as is;
-//     - resolveGrounding(); no reliable target -> Insufficient, no audit call;
+//     - resolveGrounding() with Dev 1's registered exclusive state pairs (lib/truth/exclusive.ts), so a
+//       state like touching_worker may be contradicted by its registered opposite clear_of_worker;
+//       no reliable target (incl. negated or temporally ordered claims) -> Insufficient, no audit call;
 //     - evidenceForTarget() on rows from allowed cameras only (manifest cameras minus excluded);
 //     - choose the audit goal from that evidence: support if a usable camera supports at CLEAR, else
 //       contradiction if one contradicts at DECISIVE; both or neither -> no audit (verdict() cannot
@@ -20,12 +22,13 @@
 //     - selectCitation() (window inside the claim, allowed cameras only); assertBudget(); auditCitation().
 //       Budget exhaustion or any audit failure -> audit null;
 //     - the label comes only from verdict(evidence, claim, audit).
-//  6. Persist: claims.json replaced with this account's claims; each result upserted with saveResult()
-//     (one entry per claimId, no duplicates). Right before saving, the stored entry is re-read: if it
-//     changed during this run (e.g. an agent saved), it is not overwritten. Results of claims from an
-//     earlier account stay in results.json; the board only shows results for claims.json. Deleting
-//     them safely would need a store API (Dev 3).
-//  Runs for one scene are serialised in this process.
+//  6. Persist: claims.json replaced with this account's claims; each result written with the store's
+//     compare-and-save saveResultIf(result, entrySeenAtStart): one entry per claimId, and if anything
+//     wrote that claim since this run read it (e.g. an agent), that entry is kept and returned instead.
+//     Results of claims from an earlier account stay in results.json (the board only shows claims.json's);
+//     removeResult() is not conditional, so they are not deleted here.
+//  Runs for one scene go through the store's shared serialised() scene queue, which the agent routes'
+//  lockScene() also uses; inside it only per-file locks are taken, so there is no nested scene lock.
 //
 // Audit.clipId stays the citation's grid reference ("grid:<scene>:<camera>:<start>-<end>"), not a
 // playable clip; Evidence.clipId values are grid references too.
@@ -34,7 +37,7 @@ import { z } from "zod";
 import type { Audit, CameraId, Claim, ClaimResult, GridRow, SceneManifest } from "@/lib/types";
 import { THRESHOLDS } from "@/lib/config";
 import { assertBudget, BudgetExceededError } from "@/lib/cost";
-import { NotFoundError, loadManifest, loadResults, readJson, saveResult, scenePath, serialised, writeJson } from "@/lib/store/scene";
+import { NotFoundError, loadManifest, loadResults, readJson, saveResultIf, scenePath, serialised, writeJson } from "@/lib/store/scene";
 import { selectCitation, type CitationGoal } from "@/lib/inference/citation";
 import { evidenceForTarget } from "@/lib/inference/evidence";
 import { CAMERA_IDS } from "@/lib/inference/grid";
@@ -43,6 +46,7 @@ import { auditCitation } from "@/lib/truth/auditor";
 import { splitClaims } from "@/lib/truth/claims";
 import { ClaimExtractionError } from "@/lib/truth/errors";
 import { resolveGrounding, type SceneRegistry } from "@/lib/truth/grounding";
+import { registeredExclusivePairs } from "@/lib/truth/exclusive";
 
 /** A failure of the account request, with the HTTP status the route returns. */
 export class AccountError extends Error {
@@ -182,7 +186,7 @@ export async function runAccount(sceneId: string, transcript: unknown): Promise<
     ]);
     const allowed = CAMERA_IDS.filter((c) => manifest.cameras.includes(c) && !manifest.excludedCameras.includes(c));
     const allowedRows = rows.filter((r) => allowed.includes(r.camera));
-    const registry: SceneRegistry = { entities, people, questions };
+    const registry: SceneRegistry = { entities, people, questions, exclusive: registeredExclusivePairs() };
     const durationS = manifest.durationS > 0 ? manifest.durationS : undefined;
 
     await budgetBeforeExtraction();
@@ -209,16 +213,19 @@ export async function runAccount(sceneId: string, transcript: unknown): Promise<
     }
 
     await writeJson(sceneId, "claims.json", claims);
-    const now = new Map((await loadResults(sceneId)).map((r) => [r.claimId, r]));
-    return Promise.all(
-      results.map(async (r) => {
-        const seen = before.get(r.claimId);
-        const current = now.get(r.claimId);
-        // Do not overwrite an entry that changed while this run was labelling.
-        if (JSON.stringify(current) !== JSON.stringify(seen)) return current ?? r;
-        if (r !== seen) await saveResult(sceneId, r);
-        return r;
-      }),
-    );
+    // Compare-and-save (store's saveResultIf): written only if the stored entry still equals what this
+    // run read at the start, checked and written under one file lock. If anything else wrote the claim
+    // meanwhile (e.g. an agent), its entry is kept and returned instead.
+    const out: ClaimResult[] = [];
+    for (const r of results) {
+      const seen = before.get(r.claimId) ?? null;
+      if (r === seen) {
+        out.push(r); // preserved agent-updated result: nothing to write
+        continue;
+      }
+      const { saved, current } = await saveResultIf(sceneId, r, seen);
+      out.push(saved ? r : (current ?? r));
+    }
+    return out;
   });
 }
