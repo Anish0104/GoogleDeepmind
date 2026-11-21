@@ -35,3 +35,24 @@ describe("WAREHOUSE_QUESTIONS", () => {
     expect(QUESTION_SETS.warehouse).toBe(WAREHOUSE_QUESTIONS);
   });
 });
+
+describe("SDG_NEARMISS_QUESTIONS (NVIDIA SDG-Warehouse forklift-human near miss)", () => {
+  it("asks visibility for worker and forklift plus the four state questions the answer key covers", async () => {
+    const { SDG_NEARMISS_QUESTIONS, SDG_NEARMISS_MOTION_QUESTION_IDS } = await import("@/lib/perception/questionSets");
+    const { SDG_STATE_QUESTION_IDS } = await import("@/lib/capture/sdgTruth");
+    const ids = SDG_NEARMISS_QUESTIONS.map((q) => q.id);
+    expect(ids).toEqual(expect.arrayContaining(["worker:visible:yes", "forklift:visible:yes", ...SDG_STATE_QUESTION_IDS]));
+    expect(ids).toHaveLength(2 + SDG_STATE_QUESTION_IDS.length);
+    for (const q of SDG_NEARMISS_QUESTIONS) {
+      expect(q.id.startsWith(`${q.entityId}:${q.predicate}:`)).toBe(true);
+      expect(q.text).toMatch(/\bno\b/i);
+    }
+    expect(SDG_NEARMISS_MOTION_QUESTION_IDS).toEqual(["forklift:state:moving", "worker:state:dodging"]);
+    expect(QUESTION_SETS["sdg-nearmiss"]).toBe(SDG_NEARMISS_QUESTIONS);
+  });
+
+  it("never mentions crossing lines, which these scenes do not have", async () => {
+    const { SDG_NEARMISS_QUESTIONS } = await import("@/lib/perception/questionSets");
+    for (const q of SDG_NEARMISS_QUESTIONS) expect(q.text).not.toMatch(/line|crossing/i);
+  });
+});
