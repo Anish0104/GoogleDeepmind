@@ -4,8 +4,8 @@ import { NAV_ITEMS, isSitePath, navIndex } from "./routes";
 
 describe("routing", () => {
   it("wraps only the design routes in the shell", () => {
-    for (const p of ["/", "/capture", "/board", "/proof", "/proof/c2", "/results"]) expect(isSitePath(p)).toBe(true);
-    for (const p of ["/phone", "/label", "/boardroom", "/api/cost"]) expect(isSitePath(p)).toBe(false);
+    for (const p of ["/", "/new", "/capture", "/board", "/proof", "/proof/c2", "/results"]) expect(isSitePath(p)).toBe(true);
+    for (const p of ["/phone", "/label", "/boardroom", "/newer", "/api/cost"]) expect(isSitePath(p)).toBe(false);
   });
 
   it("maps a path to its nav tab", () => {

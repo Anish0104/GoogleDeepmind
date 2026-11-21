@@ -172,14 +172,17 @@ export function Overview({
             Replay scene {sceneId} on the board: the footage pass, the agents, and the evidence behind each claim.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 36 }}>
-            <Link href="/board" className="rs-btn rs-btn-primary" style={{ padding: "15px 26px", fontSize: 15 }}>
+            <Link href="/new" className="rs-btn rs-btn-primary" style={{ padding: "15px 26px", fontSize: 15 }}>
+              Start a new investigation
+            </Link>
+            <Link href="/board" className="rs-btn rs-btn-line" style={{ padding: "15px 26px", fontSize: 15, color: "#ECE6DA" }}>
               Open the board
             </Link>
             <Link href="/proof" className="rs-btn rs-btn-line" style={{ padding: "15px 26px", fontSize: 15, color: "#ECE6DA" }}>
               Open the proof
             </Link>
             <Link href="/capture" className="rs-btn rs-btn-line" style={{ padding: "15px 26px", fontSize: 15, color: "#ECE6DA" }}>
-              Start from capture
+              Capture walkthrough
             </Link>
           </div>
         </div>
