@@ -8,14 +8,15 @@ import { HAS_FFMPEG } from "@/lib/video/testing";
 const dataDir = mkdtempSync(path.join(tmpdir(), "rashomon-perceive-"));
 process.env.DATA_DIR = dataDir;
 
-const generateJson = vi.fn(async () => ({
-  entities: [{ id: "red_cup", description: "red cup" }],
-  people: [],
-}));
+const generateJson = vi.fn(async (_m: unknown, _p: unknown, _s: unknown, ctx: { purpose: string }) =>
+  ctx.purpose === "views"
+    ? { views: ["A", "B"].map((camera) => ({ camera, text: `camera ${camera}: eye level, side-on` })) }
+    : { entities: [{ id: "red_cup", description: "red cup" }], people: [] },
+);
 const decide = vi.fn(async (_p: unknown, qs: { id: string }[]) => Object.fromEntries(qs.map((q) => [q.id, 0.7])));
 vi.mock("@/lib/gemini/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/gemini/client")>()),
-  generateJson: (...a: unknown[]) => generateJson(...(a as [])),
+  generateJson: (...a: unknown[]) => generateJson(...(a as [unknown, unknown, unknown, { purpose: string }])),
   decide: (...a: unknown[]) => decide(...(a as [unknown, { id: string }[]])),
 }));
 
@@ -38,7 +39,7 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", { timeout: 60_000 }, () => {
     const onStep = vi.fn();
     const res = await perceiveScene("p1", { maxSlicesPerCamera: 3, onStep });
     const dir = path.join(dataDir, "scenes", "p1");
-    for (const f of ["sync.json", "slices.json", "entities.json", "questions.json", "grid.jsonl"]) {
+    for (const f of ["sync.json", "slices.json", "views.json", "entities.json", "questions.json", "grid.jsonl"]) {
       expect(existsSync(path.join(dir, f))).toBe(true);
     }
     expect(res.sync.find((s) => s.camera === "B")!.offsetS).toBeCloseTo(1, 1);
@@ -46,7 +47,7 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", { timeout: 60_000 }, () => {
     expect(res.rows).toBe(6 * res.questions);
     const grid = readFileSync(path.join(dir, "grid.jsonl"), "utf8").trim().split("\n");
     expect(grid).toHaveLength(res.rows);
-    expect(onStep.mock.calls.map((c) => c[0])).toEqual(["sync", "slice", "scout", "lattice"]);
+    expect(onStep.mock.calls.map((c) => c[0])).toEqual(["sync", "slice", "views", "scout", "lattice"]);
     // scout saw one still per camera
     const parts = (generateJson.mock.calls[0] as unknown as [string, { kind: string }[]])[1];
     expect(parts.filter((p) => p.kind === "media")).toHaveLength(2);
@@ -74,7 +75,7 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", { timeout: 60_000 }, () => {
     decide.mockClear();
     const onStep = vi.fn();
     const res = await perceiveScene("pre1", { maxSlicesPerCamera: 2, presynced: true, questionSet: "sdg-nearmiss", onStep });
-    expect(generateJson).not.toHaveBeenCalled(); // no scout model call
+    expect(generateJson.mock.calls.map((c) => c[3].purpose)).toEqual(["views"]); // views only, no scout call
     const read = (f: string) => JSON.parse(readFileSync(path.join(dataDir, "scenes", "pre1", f), "utf8"));
     expect(read("entities.json")).toEqual(set.entities);
     expect(read("people.json")).toEqual(set.people);
@@ -84,6 +85,21 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", { timeout: 60_000 }, () => {
     // motion questions went to the context clips: one extra decide() per slice
     expect(decide).toHaveBeenCalledTimes(2 * 4);
     expect(onStep.mock.calls.find((c) => c[0] === "scout")![1]).toMatch(/question set sdg-nearmiss/);
+  }, 120_000);
+
+  it("writes views.json from one still per camera, and still finishes if that call fails", async () => {
+    const res = await perceiveScene("pre1", { maxSlicesPerCamera: 1, presynced: true, questionSet: "sdg-nearmiss" });
+    expect(res.views).toBe(2);
+    const views = JSON.parse(readFileSync(path.join(dataDir, "scenes", "pre1", "views.json"), "utf8"));
+    expect(views.map((v: { camera: string }) => v.camera)).toEqual(["A", "B"]);
+    generateJson.mockImplementationOnce(async () => {
+      throw new Error("model down");
+    });
+    const onStep = vi.fn();
+    const again = await perceiveScene("pre1", { maxSlicesPerCamera: 1, presynced: true, questionSet: "sdg-nearmiss", onStep });
+    expect(again.views).toBe(0);
+    expect(again.rows).toBeGreaterThan(0);
+    expect(onStep.mock.calls.find((c) => c[0] === "views")![1]).toMatch(/failed: model down/);
   }, 120_000);
 
   it("skips sync for presynced footage: zero offsets, no sync.json", async () => {

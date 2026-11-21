@@ -1,15 +1,16 @@
 // OWNER: Dev 1. Runs Dev 1's whole pipeline for a recorded scene, in order:
 // sync -> slice -> scout -> lattice. Each step writes its file in data/scenes/<id>/.
 // Dev 3's /api/scene/[id]/run can call this; scripts can too.
-import type { GridRow, Question, SyncResult } from "@/lib/types";
+import type { CameraId, GridRow, Question, SyncResult } from "@/lib/types";
 import { syncScene } from "@/lib/capture/sync";
 import { sliceScene, type Slice } from "@/lib/capture/slice";
 import { scout } from "@/lib/perception/scout";
+import { describeViews } from "@/lib/perception/views";
 import { latticeScene } from "@/lib/perception/lattice";
 import { loadManifest, writeJson } from "@/lib/store/scene";
 import { questionSet as loadQuestionSet } from "@/lib/perception/questionSets";
 
-export type PerceiveStep = "sync" | "slice" | "scout" | "lattice";
+export type PerceiveStep = "sync" | "slice" | "views" | "scout" | "lattice";
 
 export interface PerceiveOptions {
   /** Only send the first N slices per camera to the grid (keeps free-tier tests cheap). */
@@ -41,6 +42,8 @@ export interface PerceiveResult {
   sync: SyncResult[];
   slices: number;
   slicesUsed: number;
+  /** Cameras described in views.json (0 if that call failed; perception still completes). */
+  views?: number;
   entities: number;
   questions: number;
   rows: number;
@@ -67,6 +70,20 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
 
   const slices = await sliceScene(manifest, sync, { roi: opts.roi ?? false });
   step("slice", `${slices.length} slices`);
+
+  // views.json for the agents' menu: optional, so a failure is reported, not fatal.
+  let views = 0;
+  try {
+    const mid: Partial<Record<CameraId, string>> = {};
+    for (const c of manifest.cameras) {
+      const list = slices.filter((s) => s.camera === c);
+      if (list.length) mid[c] = list[Math.floor(list.length / 2)]!.stillPath;
+    }
+    views = (await describeViews(mid, sceneId)).length;
+    step("views", `${views} cameras described`);
+  } catch (e) {
+    step("views", `failed: ${e instanceof Error ? e.message : String(e)} (views.json not written)`);
+  }
 
   const setName = opts.questionSet ?? (manifest as { questionSet?: string }).questionSet;
   let entities: { id: string }[];
@@ -113,6 +130,7 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
     sync,
     slices: slices.length,
     slicesUsed: used.length,
+    views,
     entities: entities.length,
     questions: questions.length,
     rows: rows.length,
