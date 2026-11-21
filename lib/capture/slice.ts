@@ -6,7 +6,8 @@ import type { CameraId, SceneManifest, SyncResult } from "@/lib/types";
 import { LIMITS } from "@/lib/config";
 import { recordingPath } from "@/lib/capture/files";
 import { scenePath, writeJson } from "@/lib/store/scene";
-import { probe, segments, stills } from "@/lib/video/ffmpeg";
+import { probe, segments, stills, type Box } from "@/lib/video/ffmpeg";
+import { sceneRoi } from "@/lib/capture/roi";
 
 export interface Slice {
   camera: CameraId;
@@ -20,7 +21,12 @@ const EPS = 1e-6;
 const END_MARGIN_S = 0.05; // containers often end a few ms before their stated duration
 const round = (x: number) => Math.round(x * 1000) / 1000;
 
-export async function sliceScene(manifest: SceneManifest, sync: SyncResult[]): Promise<Slice[]> {
+export interface SliceOptions {
+  /** Crop each camera's slices to where things move (stills stay full-frame); writes roi.json. */
+  roi?: boolean;
+}
+
+export async function sliceScene(manifest: SceneManifest, sync: SyncResult[], opts: SliceOptions = {}): Promise<Slice[]> {
   const S = LIMITS.SLICE_S;
   const cams = await Promise.all(
     manifest.cameras
@@ -48,11 +54,19 @@ export async function sliceScene(manifest: SceneManifest, sync: SyncResult[]): P
   const count = Math.floor((end - t0) / S + EPS);
   if (count < 1) throw new Error(`scene ${manifest.sceneId}: cameras share less than one slice of footage`);
 
+  const rois: Partial<Record<CameraId, Box | null>> = {};
+  if (opts.roi) {
+    for (const c of usable) rois[c.camera] = await sceneRoi(c.file);
+    await writeJson(manifest.sceneId, "roi.json", rois);
+  }
+
   const perCamera = await Promise.all(
     usable.map(async (c) => {
       const local = t0 + c.offsetS;
       const [clips, frames] = await Promise.all([
-        segments(c.file, local, S, count, scenePath(manifest.sceneId, `slices/cam-${c.camera}`)),
+        segments(c.file, local, S, count, scenePath(manifest.sceneId, `slices/cam-${c.camera}`), {
+          ...(rois[c.camera] ? { crop: rois[c.camera]! } : {}),
+        }),
         stills(c.file, local + S / 2, S, count, scenePath(manifest.sceneId, `stills/cam-${c.camera}`)),
       ]);
       const n = Math.min(clips.length, frames.length);

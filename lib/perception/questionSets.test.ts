@@ -1,6 +1,6 @@
 // OWNER: Dev 1.
 import { describe, expect, it } from "vitest";
-import { QUESTION_SETS, WAREHOUSE_QUESTIONS } from "@/lib/perception/questionSets";
+import { QUESTION_SETS, WAREHOUSE_MOTION_QUESTION_IDS, WAREHOUSE_QUESTIONS } from "@/lib/perception/questionSets";
 
 describe("WAREHOUSE_QUESTIONS", () => {
   it("has Q1-Q6 with stable ids in the <entity>:<predicate>:<value> format", () => {
@@ -23,6 +23,12 @@ describe("WAREHOUSE_QUESTIONS", () => {
     for (const e of entities) {
       expect(WAREHOUSE_QUESTIONS.some((q) => q.entityId === e && q.predicate === "visible")).toBe(true);
     }
+  });
+
+  it("states yes/no criteria and marks the motion question", () => {
+    for (const q of WAREHOUSE_QUESTIONS) expect(q.text).toMatch(/\bno\b/i);
+    expect(WAREHOUSE_MOTION_QUESTION_IDS).toEqual(["forklift:state:stationary"]);
+    for (const id of WAREHOUSE_MOTION_QUESTION_IDS) expect(WAREHOUSE_QUESTIONS.some((q) => q.id === id)).toBe(true);
   });
 
   it("is registered by name", () => {

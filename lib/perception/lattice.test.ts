@@ -14,6 +14,15 @@ vi.mock("@/lib/gemini/client", async (orig) => ({
   decide: (...a: unknown[]) => decide(...a),
 }));
 
+const concat = vi.fn(async (inputs: string[], out: string) => {
+  writeFileSync(out, `joined:${inputs.length}`);
+  return out;
+});
+vi.mock("@/lib/video/ffmpeg", async (orig) => ({
+  ...(await orig<typeof import("@/lib/video/ffmpeg")>()),
+  concat: (inputs: string[], out: string) => concat(inputs, out),
+}));
+
 const { lattice, latticeScene } = await import("@/lib/perception/lattice");
 const { buildQuestions } = await import("@/lib/perception/scout");
 
@@ -107,6 +116,46 @@ describe("lattice", () => {
   it("rejects non-probability answers", async () => {
     decide.mockResolvedValue(Object.fromEntries(questions.map((q) => [q.id, { yes: 1 }])));
     await expect(lattice(slice("A", 0), questions, "s4", { write: false })).rejects.toThrow();
+  });
+});
+
+describe("motion questions on a longer context clip", () => {
+  const motion = "blue_box:state:open";
+
+  it("asks context questions about the context clip, everything else about the slice", async () => {
+    const ctx = path.join(clipDir, "ctx.mp4");
+    writeFileSync(ctx, "context clip bytes");
+    const rows = await lattice(slice("A", 2), questions, "m1", {
+      write: false,
+      contextPath: ctx,
+      contextQuestionIds: [motion],
+    });
+    expect(decide).toHaveBeenCalledTimes(2);
+    const [mainParts, mainQs] = decide.mock.calls[0]!;
+    const [ctxParts, ctxQs] = decide.mock.calls[1]!;
+    expect(mainQs.map((q: { id: string }) => q.id)).not.toContain(motion);
+    expect(ctxQs.map((q: { id: string }) => q.id)).toEqual([motion]);
+    expect(ctxParts[0].data).not.toBe(mainParts[0].data);
+    expect(ctxParts[1].text).toMatch(/clip/i);
+    expect(rows).toHaveLength(questions.length);
+    expect(rows.find((r) => r.questionId === motion)!.pVisible).toBe(0.3); // from the slice's visibility answer
+  });
+
+  it("falls back to the slice when no context clip is given", async () => {
+    await lattice(slice("A", 2), questions, "m2", { write: false, contextQuestionIds: [motion] });
+    expect(decide).toHaveBeenCalledTimes(1);
+  });
+
+  it("latticeScene builds each context clip from the slice before and the slices after", async () => {
+    concat.mockClear();
+    const slices = [0, 0.5, 1, 1.5, 2].map((t) => slice("B", t));
+    await latticeScene(slices, questions, "m3", undefined, { write: false, contextQuestionIds: [motion], contextSlices: 4 });
+    expect(concat).toHaveBeenCalledTimes(5);
+    const byFirst = new Map(concat.mock.calls.map(([inputs]) => [inputs.length, inputs]));
+    expect([...byFirst.keys()].every((n) => n >= 2 && n <= 4)).toBe(true);
+    const mid = concat.mock.calls.find(([inputs]) => inputs.length === 4)![0];
+    expect(mid.map((p: string) => path.basename(p))).toEqual(["B-0.mp4", "B-0.5.mp4", "B-1.mp4", "B-1.5.mp4"]);
+    expect(decide).toHaveBeenCalledTimes(10);
   });
 });
 

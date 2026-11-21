@@ -15,6 +15,10 @@ export interface PerceiveOptions {
   maxSlicesPerCamera?: number;
   /** A fixed question set (e.g. WAREHOUSE_QUESTIONS); replaces scout's questions in questions.json. */
   questions?: Question[];
+  /** Crop slices to where things move in each camera (see lib/capture/roi.ts). */
+  roi?: boolean;
+  /** Question ids asked over a ~2 s clip instead of one slice (motion questions). */
+  contextQuestionIds?: string[];
   onStep?: (step: PerceiveStep, detail: string) => void;
   onRows?: (rows: GridRow[]) => void;
 }
@@ -42,7 +46,7 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
   const sync = await syncScene(manifest);
   step("sync", sync.map((s) => `${s.camera} ${s.offsetS >= 0 ? "+" : ""}${s.offsetS.toFixed(3)}s (${s.method})`).join(", "));
 
-  const slices = await sliceScene(manifest, sync);
+  const slices = await sliceScene(manifest, sync, { roi: opts.roi ?? false });
   step("slice", `${slices.length} slices`);
 
   const scouted = await scout(scoutStills(slices), sceneId);
@@ -61,7 +65,9 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
           counts.set(s.camera, n + 1);
           return n < max;
         });
-  const rows = await latticeScene(used, questions, sceneId, opts.onRows);
+  const rows = await latticeScene(used, questions, sceneId, opts.onRows, {
+    ...(opts.contextQuestionIds ? { contextQuestionIds: opts.contextQuestionIds } : {}),
+  });
   step("lattice", `${rows.length} grid rows from ${used.length} slices`);
 
   return {

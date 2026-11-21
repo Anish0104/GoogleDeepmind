@@ -52,7 +52,13 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", () => {
 
   it("uses a fixed question set instead of scout's questions when given", async () => {
     const { WAREHOUSE_QUESTIONS } = await import("@/lib/perception/questionSets");
-    const res = await perceiveScene("p1", { maxSlicesPerCamera: 2, questions: WAREHOUSE_QUESTIONS });
+    const res = await perceiveScene("p1", {
+      maxSlicesPerCamera: 2,
+      questions: WAREHOUSE_QUESTIONS,
+      roi: true,
+      contextQuestionIds: ["forklift:state:stationary"],
+    });
+    expect(existsSync(path.join(dataDir, "scenes", "p1", "roi.json"))).toBe(true);
     expect(res.questions).toBe(WAREHOUSE_QUESTIONS.length);
     expect(res.rows).toBe(4 * WAREHOUSE_QUESTIONS.length);
     const saved = JSON.parse(readFileSync(path.join(dataDir, "scenes", "p1", "questions.json"), "utf8"));
