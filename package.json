@@ -1,0 +1,44 @@
+{
+  "name": "rashomon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "RASHOMON: checks each claim in a spoken account against several synced phone cameras. Gemini 4 NYC Hackathon.",
+  "scripts": {
+    "dev": "next dev",
+    "dev:https": "next dev --experimental-https",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "killtest": "tsx scripts/killtests/run.ts",
+    "scriptgen": "tsx scripts/scriptgen.ts",
+    "eval:run": "tsx eval/run.ts",
+    "eval:report": "tsx eval/report.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "protobufjs"]
+  },
+  "dependencies": {
+    "@google/genai": "^3.6.1",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.5",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}
