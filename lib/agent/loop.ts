@@ -76,6 +76,8 @@ export interface AgentDeps {
   now: () => Date;
   /** Stamped on every step and on the run, so it is never hidden which turn function ran. */
   mode?: AgentMode;
+  /** Number of the first step (default 1). A fallback rerun continues the claim's numbering. */
+  firstStepN?: number;
 }
 
 /** Real implementations. verdict()/enforceDowngradeOnly() are Dev 2's; checkWindow()/audit() are stubs until merged. */
@@ -116,7 +118,7 @@ export async function runAgent(
     const full: AgentStep = {
       agent,
       claimId: claim.id,
-      n: steps.length + 1,
+      n: (d.firstStepN ?? 1) + steps.length,
       ...step,
       ...(d.mode ? { mode: d.mode } : {}),
     };

@@ -384,6 +384,13 @@ describe("runAgent", () => {
     expect(out.steps.map((s) => s.mode)).toEqual(["managed", "managed"]);
   });
 
+  it("numbers steps from firstStepN when given (a fallback rerun continues the claim's numbering)", async () => {
+    const { deps, run } = setup({ script: [inspect("B", 10, 12), stop()], overrides: { firstStepN: 3 } });
+    const out = await run();
+    expect(out.steps.map((s) => s.n)).toEqual([3, 4]);
+    expect(deps.logStep.mock.calls.map((c) => c[1].n)).toEqual([3, 4]);
+  });
+
   it("leaves mode off steps when deps.mode is not set", async () => {
     const { run } = setup({ script: [stop()] });
     const out = await run();

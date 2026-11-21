@@ -1,8 +1,9 @@
 // OWNER: Dev 3. Shared entry point for investigate() and challenge(): load the claim's current result and the
 // manifest from the store, check eligibility, pick the turn function and run the loop.
-// Mode: AGENT_MODE=managed|standin (default managed). If managed is model_unavailable on its first turn and
-// AGENT_FALLBACK=standin, the run is repeated with the stand-in and labelled "standin-fallback". The mode that
-// actually ran is on the run and on every step, never hidden.
+// Mode: AGENT_MODE=managed|standin (default standin; managed only when AGENT_MODE=managed). If managed is
+// model_unavailable on its first turn and AGENT_FALLBACK=standin, the run is repeated with the stand-in and
+// labelled "standin-fallback", its steps numbered on from the managed step. The mode that actually ran is on
+// the run and on every step, never hidden.
 // Every reason not to run comes back as { ran: false, reason }, never as a thrown error.
 import { loadManifest, loadResults, NotFoundError } from "@/lib/store/scene";
 import type { AgentMode, AgentName, Claim, ClaimResult, SceneManifest } from "@/lib/types";
@@ -16,7 +17,7 @@ import { standinTurnFn, type StandinModel } from "@/lib/agent/standin";
 export type AgentOutcome = { ran: true; run: AgentRun } | { ran: false; reason: string };
 
 export interface StartAgentDeps extends Partial<Omit<AgentDeps, "start" | "mode">> {
-  /** "managed": Gemini Managed Agent. "standin": ordinary function-calling turn. Default: AGENT_MODE, else managed. */
+  /** "managed": Gemini Managed Agent. "standin": ordinary function-calling turn. Default: managed only if AGENT_MODE=managed. */
   mode?: "managed" | "standin";
   /** "standin": rerun with the stand-in if managed fails on its first turn. Default: AGENT_FALLBACK, else none. */
   fallback?: "standin" | "none";
@@ -40,7 +41,7 @@ export async function startAgent(
 ): Promise<AgentOutcome> {
   const refuse = (reason: string): AgentOutcome => ({ ran: false, reason });
   const {
-    mode = process.env.AGENT_MODE === "standin" ? "standin" : "managed",
+    mode = process.env.AGENT_MODE === "managed" ? "managed" : "standin",
     fallback = process.env.AGENT_FALLBACK === "standin" ? "standin" : "none",
     model,
     managedOptions,
@@ -71,8 +72,8 @@ export async function startAgent(
     return refuse(`The ${label(agent)} does not run on claim ${claim.id}: ${eligibility.reason}${hint}`);
   }
 
-  const run = (turn: (input: TurnInput) => Promise<TurnOutput>, ranAs: AgentMode) =>
-    runAgent(agent, claim, sceneId, { ...loopDeps, turn, mode: ranAs, start: { result, manifest } });
+  const run = (turn: (input: TurnInput) => Promise<TurnOutput>, ranAs: AgentMode, firstStepN = 1) =>
+    runAgent(agent, claim, sceneId, { ...loopDeps, turn, mode: ranAs, firstStepN, start: { result, manifest } });
   const standin = (): ((input: TurnInput) => Promise<TurnOutput>) => standinTurnFn(model ?? createGenaiModel());
 
   // An injected turn runs as given, labelled with the requested mode (stand-in unless told otherwise).
@@ -105,5 +106,7 @@ export async function startAgent(
   if (fb instanceof Error) {
     return managedRun ? { ran: true, run: managedRun } : refuse(`model unavailable: ${fb.message}`);
   }
-  return { ran: true, run: await run(fb, "standin-fallback") };
+  // Continue the claim's step numbering after the failed managed step (managed n:1 -> fallback starts at n:2).
+  const lastN = managedRun?.steps.at(-1)?.n ?? 0;
+  return { ran: true, run: await run(fb, "standin-fallback", lastN + 1) };
 }

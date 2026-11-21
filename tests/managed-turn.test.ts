@@ -491,16 +491,27 @@ describe("startAgent mode", () => {
   }
   const failing = () => fakeClient([{ ...requiresAction("v1_r1", []), status: "failed", steps: [] }]);
 
-  it("defaults to managed (AGENT_MODE unset)", async () => {
+  it("defaults to the stand-in when AGENT_MODE is unset: the managed client is never called", async () => {
+    const client = fakeClient([completed("v1_r1", "Nothing in the menu could help.")]);
+    const { menu, deps } = await startDeps({ managedOptions: { client, logPath: log } });
+    const out = await startAgent("investigator", menu.claim, "sample-scene", deps);
+    expect(out).toMatchObject({ ran: true, run: { mode: "standin" } });
+    expect(client.create).not.toHaveBeenCalled();
+  });
+
+  it("AGENT_MODE=managed runs the managed agent", async () => {
     quiet();
+    process.env.AGENT_MODE = "managed";
     const client = fakeClient([completed("v1_r1", "Nothing in the menu could help.")]);
     const { menu, deps } = await startDeps({ managedOptions: { client, logPath: log } });
     const out = await startAgent("investigator", menu.claim, "sample-scene", deps);
     expect(out).toMatchObject({ ran: true, run: { mode: "managed", stopReason: "agent" } });
+    expect(client.create).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to the stand-in when managed fails on the first turn and AGENT_FALLBACK=standin", async () => {
     quiet();
+    process.env.AGENT_MODE = "managed";
     process.env.AGENT_FALLBACK = "standin";
     const { menu, deps } = await startDeps({ managedOptions: { client: failing(), logPath: log, ...fakeTime() } });
 
@@ -513,14 +524,16 @@ describe("startAgent mode", () => {
     expect(out.run.steps.every((s) => s.mode === "standin-fallback")).toBe(true);
     // The failed managed step is still logged, labelled managed: nothing about the switch is hidden.
     const logged = deps.logStep.mock.calls.map((c) => (c as unknown as [string, AgentStep])[1]);
-    expect(logged.map((s) => [s.mode, s.action])).toEqual([
-      ["managed", "rejected"],
-      ["standin-fallback", "stop"],
+    expect(logged.map((s) => [s.n, s.mode, s.action])).toEqual([
+      [1, "managed", "rejected"],
+      [2, "standin-fallback", "stop"], // numbering continues from the managed step for this claim
     ]);
+    expect(out.run.steps.map((s) => s.n)).toEqual([2]);
   });
 
   it("without AGENT_FALLBACK a managed failure stays model_unavailable in managed mode", async () => {
     quiet();
+    process.env.AGENT_MODE = "managed";
     const { menu, deps } = await startDeps({ managedOptions: { client: failing(), logPath: log, ...fakeTime() } });
     const out = await startAgent("investigator", menu.claim, "sample-scene", deps);
     expect(out).toMatchObject({ ran: true, run: { mode: "managed", stopReason: "model_unavailable" } });
