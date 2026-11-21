@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { audio, clip, concat, crop, grayFrames, probe, remux, segments, still, stills } from "@/lib/video/ffmpeg";
+import { audio, clip, concat, crop, grayFrames, probe, remux, segments, still, stills, transcode } from "@/lib/video/ffmpeg";
 import { HAS_FFMPEG } from "@/lib/video/testing";
 
 let dir: string;
@@ -147,6 +147,21 @@ describe.skipIf(!HAS_FFMPEG)("segments", () => {
     await expect(segments(src, 0, 0.5, 1, out("bad"), { crop: { x: 0, y: 0, w: 1, h: 10 } })).rejects.toThrow();
     await expect(segments(src, 0, 5, 1, out("bad"))).rejects.toThrow();
     await expect(segments(src, 0, 0.5, 0, out("bad"))).rejects.toThrow();
+  });
+});
+
+describe.skipIf(!HAS_FFMPEG)("transcode", () => {
+  it("trims, resamples and rescales into a silent webm", async () => {
+    const o = await transcode(src, out("trim.webm"), { startS: 1, durationS: 3, fps: 15, height: 360 });
+    const p = await probe(o);
+    expect(p.durationS).toBeGreaterThan(2.8);
+    expect(p.durationS).toBeLessThan(3.2);
+    expect(p).toMatchObject({ height: 360, width: 640, hasAudio: false });
+  });
+
+  it("rejects a bad window", async () => {
+    await expect(transcode(src, out("bad.webm"), { startS: -1, durationS: 2, fps: 30, height: 720 })).rejects.toThrow();
+    await expect(transcode(src, out("bad.webm"), { startS: 0, durationS: 0, fps: 30, height: 720 })).rejects.toThrow();
   });
 });
 

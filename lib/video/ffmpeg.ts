@@ -203,6 +203,28 @@ export async function segments(
   return made;
 }
 
+/**
+ * Trims [startS, startS + durationS] and re-encodes it as a silent VP8 webm at a fixed fps and height
+ * (used to bring external footage, e.g. 60 fps 1080p, to the phone-recording format).
+ */
+export async function transcode(
+  input: string,
+  out: string,
+  o: { startS: number; durationS: number; fps: number; height: number },
+): Promise<string> {
+  if (!(o.startS >= 0) || !(o.durationS > 0) || !(o.fps > 0) || !Number.isInteger(o.height) || o.height < 2) {
+    throw new Error(`invalid transcode window ${JSON.stringify(o)}`);
+  }
+  return ffmpeg(
+    [
+      "-ss", t(o.startS), "-i", input, "-t", t(o.durationS), "-an",
+      "-vf", `fps=${o.fps},scale=-2:${o.height}`,
+      "-c:v", "libvpx", "-deadline", "good", "-cpu-used", "4", "-b:v", "2500k",
+    ],
+    out,
+  );
+}
+
 /** Joins clips with identical encoding (e.g. consecutive segments) into one file, without re-encoding. */
 export async function concat(inputs: string[], out: string): Promise<string> {
   if (inputs.length === 0) throw new Error("concat needs at least one input");
