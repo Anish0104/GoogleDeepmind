@@ -105,7 +105,8 @@ describe("answer-key guard: the warehouse eval is the only new reader of data/la
   /** Existing files that touch data/labels, with why; any other file naming a labels path fails. */
   const KNOWN_LABELS_USERS: Record<string, string> = {
     "lib/capture/assembly101.ts": "Dev 1: WRITES the Assembly101 answer key (<sceneId>.labels.json); never reads it",
-    "lib/capture/sdgWarehouse.ts": "Dev 1: WRITES the SDG-Warehouse answer key (<sceneId>.truth.json) the eval reads; never reads it",
+    "lib/capture/sdgWarehouse.ts": "Dev 1: writes the answer key and exports readSdgTruth() for kill test A",
+    "scripts/killtests/a.ts": "Dev 1: kill test A, an evaluation script, reads the SDG answer keys (via readSdgTruth()) to score the grid",
     "app/label/actions.ts": "Dev 4: the human labelling tool reads/writes its own <sceneId>__<labeler>.json files",
     "eval/report.ts": "Dev 4: the results report reads the merged human labels (<sceneId>.json)",
   };
@@ -153,3 +154,41 @@ describe("answer-key guard: the warehouse eval is the only new reader of data/la
     }
   });
 });
+
+/** Source that uses readSdgTruth: an import (named, aliased or re-exported) or any reference to it. */
+function usesReadSdgTruth(source: string): boolean {
+  return /\breadSdgTruth\b/.test(source);
+}
+
+/** Files (path + source) that use readSdgTruth. */
+function readSdgTruthUsers(files: { path: string; source: string }[]): string[] {
+  return files.filter((f) => usesReadSdgTruth(f.source)).map((f) => f.path);
+}
+
+describe("answer-key guard: nothing that labels claims or perceives imports readSdgTruth()", () => {
+  const GUARDED = ["lib/agent", "lib/pipeline", "lib/api", "lib/truth", "lib/inference", "lib/perception", "app"];
+
+  it("self-test: a planted import is caught, in every form; unrelated names are not", () => {
+    const planted = [
+      { path: "lib/agent/planted-a.ts", source: `import { readSdgTruth } from "@/lib/capture/sdgWarehouse";` },
+      { path: "lib/truth/planted-b.ts", source: `import { readSdgTruth as key } from "../capture/sdgWarehouse";` },
+      { path: "app/api/planted-c.ts", source: `const m = await import("@/lib/capture/sdgWarehouse"); m.readSdgTruth(p);` },
+      { path: "lib/pipeline/planted-d.ts", source: `export { readSdgTruth } from "@/lib/capture/sdgWarehouse";` },
+      { path: "lib/inference/clean.ts", source: `import { importSdgWarehouse } from "@/lib/capture/sdgWarehouse"; // readSdgTruthy` },
+    ];
+    expect(readSdgTruthUsers(planted)).toEqual(["lib/agent/planted-a.ts", "lib/truth/planted-b.ts", "app/api/planted-c.ts", "lib/pipeline/planted-d.ts"]);
+  });
+
+  it("no file under lib/agent, lib/pipeline, lib/api, lib/truth, lib/inference, lib/perception or app/ uses readSdgTruth", async () => {
+    const paths = (await Promise.all(GUARDED.map((d) => sourceFiles(d)))).flat();
+    expect(paths.length).toBeGreaterThan(50); // the scan really looked at the code
+    const files = await Promise.all(paths.map(async (p) => ({ path: p, source: await readFile(path.join(ROOT, p), "utf8") })));
+    expect(readSdgTruthUsers(files)).toEqual([]);
+  });
+
+  it("readSdgTruth exists where expected (so the scan above is meaningful)", async () => {
+    expect(usesReadSdgTruth(await readFile(path.join(ROOT, "lib/capture/sdgWarehouse.ts"), "utf8"))).toBe(true);
+    expect(usesReadSdgTruth(await readFile(path.join(ROOT, "scripts/killtests/a.ts"), "utf8"))).toBe(true);
+  });
+});
+
