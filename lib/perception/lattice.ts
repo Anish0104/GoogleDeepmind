@@ -1,12 +1,15 @@
 // OWNER: Dev 1. Decision 1 grid: one call per camera per slice answers every question.
 // Rows are appended to grid.jsonl as they arrive so the board fills live.
 // pVisible for a row is pYes of its entity's "visible" question in the same slice and camera.
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { z } from "zod";
 import type { GridRow, Question } from "@/lib/types";
 import type { Slice } from "@/lib/capture/slice";
 import { decide, mediaPart, textPart, type DecisionQuestion } from "@/lib/gemini/client";
 import { appendJsonl } from "@/lib/store/scene";
+import { concat } from "@/lib/video/ffmpeg";
 
 export const LATTICE_MAX_QUESTIONS = 100;
 
@@ -14,6 +17,12 @@ export interface LatticeOptions {
   /** Append rows to grid.jsonl (default true). Kill tests turn this off. */
   write?: boolean;
   maxQuestionsPerCall?: number;
+  /** Questions that need motion (e.g. "is it stationary?") are asked about a longer clip instead. */
+  contextQuestionIds?: string[];
+  /** lattice(): the longer clip for this slice. latticeScene() builds it when contextQuestionIds is set. */
+  contextPath?: string;
+  /** latticeScene(): slices per context clip, starting one slice before (default 4 = 2 s). */
+  contextSlices?: number;
 }
 
 const Answers = z.record(z.string(), z.number().min(0).max(1));
@@ -72,13 +81,26 @@ export async function lattice(slice: Slice, questions: Question[], sceneId: stri
   const groups = groupByEntity(questions);
   const video = mediaPart((await readFile(slice.path)).toString("base64"), "video/mp4");
   const context = textPart(
-    `Half-second video slice from camera ${slice.camera} filming a tabletop mat with six printed zones A-F. ` +
+    `Half-second video slice from camera ${slice.camera}. ` +
       `Answer each question only from what this camera shows in this slice.`,
   );
 
+  const onContext = new Set(opts.contextPath ? (opts.contextQuestionIds ?? []) : []);
+  const sliceGroups = groups.map((g) => ({ ...g, rest: g.rest.filter((q) => !onContext.has(q.id)) }));
+
   const p: Record<string, number> = {};
-  for (const qs of batches(groups, opts.maxQuestionsPerCall ?? LATTICE_MAX_QUESTIONS)) {
+  for (const qs of batches(sliceGroups, opts.maxQuestionsPerCall ?? LATTICE_MAX_QUESTIONS)) {
     Object.assign(p, Answers.parse(await decide([video, context], qs, { purpose: "lattice", sceneId })));
+  }
+
+  const contextQs = questions.filter((q) => onContext.has(q.id)).map((q): DecisionQuestion => ({ id: q.id, text: q.text, kind: "noul" }));
+  if (contextQs.length && opts.contextPath) {
+    const clip = mediaPart((await readFile(opts.contextPath)).toString("base64"), "video/mp4");
+    const note = textPart(
+      `Short video clip from camera ${slice.camera} spanning about two seconds around this moment. ` +
+        `Answer each question about what happens during this clip.`,
+    );
+    Object.assign(p, Answers.parse(await decide([clip, note], contextQs, { purpose: "lattice", sceneId })));
   }
 
   const visibleOf = new Map(groups.map((g) => [g.entityId, p[g.visible.id]!]));
@@ -101,9 +123,25 @@ export async function latticeScene(
   opts: LatticeOptions = {},
 ): Promise<GridRow[]> {
   const errors: Error[] = [];
+  const needsContext = (opts.contextQuestionIds ?? []).length > 0;
+  const span = Math.max(2, opts.contextSlices ?? 4);
+  const byCamera = new Map<string, Slice[]>();
+  for (const s of [...slices].sort((a, b) => a.t - b.t)) byCamera.set(s.camera, [...(byCamera.get(s.camera) ?? []), s]);
+
+  /** Joins the slice before this one and the ones after it into one clip, cached next to the slices. */
+  const contextFor = async (s: Slice): Promise<string> => {
+    const list = byCamera.get(s.camera)!;
+    const k = list.indexOf(s);
+    const out = path.join(path.dirname(s.path), `ctx-${path.basename(s.path)}`);
+    if (!existsSync(out)) await concat(list.slice(Math.max(0, k - 1), Math.min(list.length, k - 1 + span)).map((x) => x.path), out);
+    return out;
+  };
+
   const results = await Promise.all(
     slices.map((s) =>
-      lattice(s, questions, sceneId, opts).then(
+      (needsContext ? contextFor(s).then((contextPath) => ({ ...opts, contextPath })) : Promise.resolve(opts))
+        .then((o) => lattice(s, questions, sceneId, o))
+        .then(
         (rows) => {
           onRows?.(rows);
           return rows;

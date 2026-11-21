@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { audio, clip, crop, grayFrames, probe, remux, segments, still, stills } from "@/lib/video/ffmpeg";
+import { audio, clip, concat, crop, grayFrames, probe, remux, segments, still, stills, transcode } from "@/lib/video/ffmpeg";
 import { HAS_FFMPEG } from "@/lib/video/testing";
 
 let dir: string;
@@ -21,7 +21,7 @@ beforeAll(() => {
     "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "500k", "-c:a", "libopus", "-shortest", src,
   ]);
   if (r.status !== 0) throw new Error(`fixture failed: ${r.stderr.toString()}`);
-}, 60_000);
+}, 180_000);
 
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -137,9 +137,45 @@ describe.skipIf(!HAS_FFMPEG)("segments", () => {
     }
   });
 
+  it("crops each segment and scales the crop up to 640 px wide", async () => {
+    const files = await segments(src, 1, 0.5, 2, out("seg-crop"), { crop: { x: 100, y: 60, w: 320, h: 240 } });
+    expect(files).toHaveLength(2);
+    expect(await probe(files[0]!)).toMatchObject({ width: 640, height: 480 });
+  });
+
   it("rejects bad arguments", async () => {
+    await expect(segments(src, 0, 0.5, 1, out("bad"), { crop: { x: 0, y: 0, w: 1, h: 10 } })).rejects.toThrow();
     await expect(segments(src, 0, 5, 1, out("bad"))).rejects.toThrow();
     await expect(segments(src, 0, 0.5, 0, out("bad"))).rejects.toThrow();
+  });
+});
+
+describe.skipIf(!HAS_FFMPEG)("transcode", () => {
+  it("trims, resamples and rescales into a silent webm", async () => {
+    const o = await transcode(src, out("trim.webm"), { startS: 1, durationS: 3, fps: 15, height: 360 });
+    const p = await probe(o);
+    expect(p.durationS).toBeGreaterThan(2.8);
+    expect(p.durationS).toBeLessThan(3.2);
+    expect(p).toMatchObject({ height: 360, width: 640, hasAudio: false });
+  });
+
+  it("rejects a bad window", async () => {
+    await expect(transcode(src, out("bad.webm"), { startS: -1, durationS: 2, fps: 30, height: 720 })).rejects.toThrow();
+    await expect(transcode(src, out("bad.webm"), { startS: 0, durationS: 0, fps: 30, height: 720 })).rejects.toThrow();
+  });
+});
+
+describe.skipIf(!HAS_FFMPEG)("concat", () => {
+  it("joins consecutive segments into one clip", async () => {
+    const parts = await segments(src, 0, 0.5, 4, out("seg-cat"));
+    const joined = await concat(parts, out("joined.mp4"));
+    const p = await probe(joined);
+    expect(p.durationS).toBeGreaterThan(1.8);
+    expect(p.durationS).toBeLessThan(2.2);
+  });
+
+  it("needs at least one input", async () => {
+    await expect(concat([], out("none.mp4"))).rejects.toThrow();
   });
 });
 

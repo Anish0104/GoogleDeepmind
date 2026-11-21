@@ -27,6 +27,8 @@ beforeAll(async () => {
   if (!HAS_FFMPEG) return;
   await createScene({ split: "starter", room: "r1", cameras: ["A", "B"], excludedCameras: [] }, { id: "p1" });
   await makeSyncFixture(path.join(dataDir, "scenes", "p1"), { A: 2.0, B: 3.0 }, { durationS: 6 });
+  await createScene({ split: "dev", room: "r1", cameras: ["A", "B"], excludedCameras: [] }, { id: "pre1" });
+  await makeSyncFixture(path.join(dataDir, "scenes", "pre1"), { A: 2.0, B: 2.0 }, { durationS: 6 });
 }, 120_000);
 
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
@@ -48,5 +50,30 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", () => {
     // scout saw one still per camera
     const parts = (generateJson.mock.calls[0] as unknown as [string, { kind: string }[]])[1];
     expect(parts.filter((p) => p.kind === "media")).toHaveLength(2);
+  }, 120_000);
+
+  it("uses a fixed question set instead of scout's questions when given", async () => {
+    const { WAREHOUSE_QUESTIONS } = await import("@/lib/perception/questionSets");
+    const res = await perceiveScene("p1", {
+      maxSlicesPerCamera: 2,
+      questions: WAREHOUSE_QUESTIONS,
+      roi: true,
+      contextQuestionIds: ["forklift:state:stationary"],
+    });
+    expect(existsSync(path.join(dataDir, "scenes", "p1", "roi.json"))).toBe(true);
+    expect(res.questions).toBe(WAREHOUSE_QUESTIONS.length);
+    expect(res.rows).toBe(4 * WAREHOUSE_QUESTIONS.length);
+    const saved = JSON.parse(readFileSync(path.join(dataDir, "scenes", "p1", "questions.json"), "utf8"));
+    expect(saved.map((q: { id: string }) => q.id)).toEqual(WAREHOUSE_QUESTIONS.map((q) => q.id));
+  }, 120_000);
+
+  it("skips sync for presynced footage: zero offsets, no sync.json", async () => {
+    const onStep = vi.fn();
+    const res = await perceiveScene("pre1", { maxSlicesPerCamera: 1, presynced: true, onStep });
+    expect(res.presynced).toBe(true);
+    expect(res.sync.map((s) => [s.camera, s.offsetS, s.driftPerMin])).toEqual([["A", 0, 0], ["B", 0, 0]]);
+    expect(existsSync(path.join(dataDir, "scenes", "pre1", "sync.json"))).toBe(false);
+    expect(onStep.mock.calls[0]![1]).toMatch(/presynced/);
+    expect(res.slices).toBeGreaterThan(0);
   }, 120_000);
 });

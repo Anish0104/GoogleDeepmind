@@ -1,6 +1,6 @@
 // OWNER: Dev 1. FFmpeg wrapper (child_process.spawn). Raw video never leaves the laptop.
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { LIMITS } from "@/lib/config";
@@ -162,15 +162,36 @@ export async function grayFrames(
  * Cuts [startS, startS + count * segS) into `count` silent low-res mp4 segments of segS each,
  * written as <dir>/00000.mp4, 00001.mp4, ... Returns the paths in order.
  */
-export async function segments(input: string, startS: number, segS: number, count: number, dir: string): Promise<string[]> {
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const validBox = ({ x, y, w, h }: Box) => [x, y, w, h].every(Number.isInteger) && x >= 0 && y >= 0 && w >= 2 && h >= 2;
+
+export async function segments(
+  input: string,
+  startS: number,
+  segS: number,
+  count: number,
+  dir: string,
+  opts: { crop?: Box } = {},
+): Promise<string[]> {
   if (!(startS >= 0) || !(segS > 0) || !(segS <= LIMITS.CLIP_MAX_S) || !Number.isInteger(count) || count < 1) {
     throw new Error(`invalid segments(${startS}, ${segS}, ${count})`);
   }
+  if (opts.crop && !validBox(opts.crop)) throw new Error(`invalid crop box ${JSON.stringify(opts.crop)}`);
+  // A crop is scaled up to the full clip width so small objects fill more of what the model sees.
+  const view = opts.crop
+    ? `crop=${opts.crop.w}:${opts.crop.h}:${opts.crop.x}:${opts.crop.y},scale=${CLIP_MAX_WIDTH}:-2`
+    : `scale='min(${CLIP_MAX_WIDTH},iw)':-2`;
   mkdirSync(dir, { recursive: true });
   await run(FFMPEG, [
     "-hide_banner", "-loglevel", "error", "-y",
     "-ss", t(startS), "-i", input, "-t", t(segS * count), "-an",
-    "-vf", `fps=30,scale='min(${CLIP_MAX_WIDTH},iw)':-2`,
+    "-vf", `fps=30,${view}`,
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-pix_fmt", "yuv420p",
     "-force_key_frames", `expr:gte(t,n_forced*${segS})`,
     "-f", "segment", "-segment_time", String(segS), "-segment_time_delta", "0.02", "-reset_timestamps", "1", "-segment_format", "mp4",
@@ -180,6 +201,41 @@ export async function segments(input: string, startS: number, segS: number, coun
   const made = paths.filter((p) => existsSync(p));
   if (made.length === 0) throw new Error(`ffmpeg produced no segments in ${dir}`);
   return made;
+}
+
+/**
+ * Trims [startS, startS + durationS] and re-encodes it as a silent VP8 webm at a fixed fps and height
+ * (used to bring external footage, e.g. 60 fps 1080p, to the phone-recording format).
+ */
+export async function transcode(
+  input: string,
+  out: string,
+  o: { startS: number; durationS: number; fps: number; height: number },
+): Promise<string> {
+  if (!(o.startS >= 0) || !(o.durationS > 0) || !(o.fps > 0) || !Number.isInteger(o.height) || o.height < 2) {
+    throw new Error(`invalid transcode window ${JSON.stringify(o)}`);
+  }
+  return ffmpeg(
+    [
+      "-ss", t(o.startS), "-i", input, "-t", t(o.durationS), "-an",
+      "-vf", `fps=${o.fps},scale=-2:${o.height}`,
+      "-c:v", "libvpx", "-deadline", "good", "-cpu-used", "4", "-b:v", "2500k",
+    ],
+    out,
+  );
+}
+
+/** Joins clips with identical encoding (e.g. consecutive segments) into one file, without re-encoding. */
+export async function concat(inputs: string[], out: string): Promise<string> {
+  if (inputs.length === 0) throw new Error("concat needs at least one input");
+  const list = `${out}.list.txt`;
+  mkdirSync(path.dirname(out), { recursive: true });
+  writeFileSync(list, inputs.map((p) => `file '${path.resolve(p).replace(/'/g, "'\\''")}'`).join("\n") + "\n");
+  try {
+    return await ffmpeg(["-f", "concat", "-safe", "0", "-i", list, "-c", "copy"], out);
+  } finally {
+    rmSync(list, { force: true });
+  }
 }
 
 /** Saves one low-res still every everyS seconds from startS: <dir>/00000.jpg, ... Returns the paths in order. */
