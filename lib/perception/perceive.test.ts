@@ -118,6 +118,23 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", { timeout: 60_000 }, () => {
     }
   }, 120_000);
 
+  it("calibrates the grid with the given curves and keeps the raw answers in grid.raw.jsonl", async () => {
+    const dir = path.join(dataDir, "scenes", "pre1");
+    rmSync(path.join(dir, "grid.jsonl"), { force: true });
+    rmSync(path.join(dir, "grid.raw.jsonl"), { force: true });
+    await perceiveScene("pre1", {
+      maxSlicesPerCamera: 1,
+      presynced: true,
+      questionSet: "sdg-nearmiss",
+      calibration: { "worker:visible:yes": { a: 1, b: 2 } },
+    });
+    const read = (f: string) => readFileSync(path.join(dir, f), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    const raw = read("grid.raw.jsonl").find((r: { questionId: string }) => r.questionId === "worker:visible:yes");
+    const cal = read("grid.jsonl").find((r: { questionId: string }) => r.questionId === "worker:visible:yes");
+    expect(raw.pYes).toBe(0.7);
+    expect(cal.pYes).toBeGreaterThan(0.9); // logit(0.7) + 2
+  }, 120_000);
+
   it("skips sync for presynced footage: zero offsets, no sync.json", async () => {
     const onStep = vi.fn();
     const res = await perceiveScene("pre1", { maxSlicesPerCamera: 1, presynced: true, onStep });

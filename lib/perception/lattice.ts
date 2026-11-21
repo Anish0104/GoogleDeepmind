@@ -1,14 +1,17 @@
 // OWNER: Dev 1. Decision 1 grid: one call per camera per slice answers every question.
 // Rows are appended to grid.jsonl as they arrive so the board fills live.
 // pVisible for a row is pYes of its entity's "visible" question in the same slice and camera.
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+// With a calibration (per-question Platt curves), raw answers go to grid.raw.jsonl and calibrated
+// ones to grid.jsonl; recalibrateGrid() redoes grid.jsonl from the raw file with no model call.
+import { copyFileSync, existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import type { GridRow, Question } from "@/lib/types";
 import type { Slice } from "@/lib/capture/slice";
 import { decide, mediaPart, textPart, type DecisionQuestion } from "@/lib/gemini/client";
-import { appendJsonl } from "@/lib/store/scene";
+import { appendJsonl, scenePath } from "@/lib/store/scene";
+import { applyPlatt } from "@/lib/perception/calibration";
 import { concat } from "@/lib/video/ffmpeg";
 
 export const LATTICE_MAX_QUESTIONS = 100;
@@ -28,7 +31,12 @@ export interface LatticeOptions {
    * scored (e.g. every other one). Defaults to the scored slices.
    */
   contextFrom?: Slice[];
+  /** Per-question Platt curves (question id -> {a, b}); questions without one are left as answered. */
+  calibration?: Record<string, { a: number; b: number }>;
 }
+
+type Calibration = NonNullable<LatticeOptions["calibration"]>;
+const calibrate = (cal: Calibration | undefined, id: string, p: number) => (cal?.[id] ? applyPlatt(p, cal[id]!) : p);
 
 const Answers = z.record(z.string(), z.number().min(0).max(1));
 
@@ -110,12 +118,17 @@ export async function lattice(slice: Slice, questions: Question[], sceneId: stri
 
   const visibleOf = new Map(groups.map((g) => [g.entityId, p[g.visible.id]!]));
 
-  const rows: GridRow[] = questions.map((q) => {
+  const raw: GridRow[] = questions.map((q) => {
     const pYes = p[q.id];
     if (pYes === undefined) throw new Error(`lattice: no answer for ${q.id}`);
     return { sceneId, camera: slice.camera, t: slice.t, questionId: q.id, pYes, pVisible: visibleOf.get(q.entityId)! };
   });
-  if (opts.write !== false) for (const r of rows) await appendJsonl(sceneId, "grid.jsonl", r);
+  const cal = opts.calibration;
+  const rows = cal ? raw.map((r) => calibrateRow(r, cal)) : raw;
+  if (opts.write !== false) {
+    if (cal) for (const r of raw) await appendJsonl(sceneId, "grid.raw.jsonl", r);
+    for (const r of rows) await appendJsonl(sceneId, "grid.jsonl", r);
+  }
   return rows;
 }
 
@@ -164,4 +177,29 @@ export async function latticeScene(
   }
   if (errors.length) console.warn(`[lattice] ${errors.length}/${slices.length} slices failed; first: ${errors[0]!.message}`);
   return results.flat().sort((a, b) => a.t - b.t || a.camera.localeCompare(b.camera));
+}
+
+/** A raw row with its pYes and pVisible (its entity's visibility answer) put through the curves. */
+function calibrateRow(r: GridRow, cal: Calibration): GridRow {
+  const entity = r.questionId.split(":")[0]!;
+  return { ...r, pYes: calibrate(cal, r.questionId, r.pYes), pVisible: calibrate(cal, visibleId(entity), r.pVisible) };
+}
+
+/**
+ * Rewrites grid.jsonl from grid.raw.jsonl with new curves; no model call. The first time, an
+ * existing grid.jsonl (written without calibration) is taken as raw and copied to grid.raw.jsonl.
+ */
+export async function recalibrateGrid(sceneId: string, calibration: Calibration): Promise<number> {
+  const rawFile = scenePath(sceneId, "grid.raw.jsonl");
+  const gridFile = scenePath(sceneId, "grid.jsonl");
+  if (!existsSync(rawFile)) {
+    if (!existsSync(gridFile)) throw new Error(`scene ${sceneId} has no grid to recalibrate`);
+    copyFileSync(gridFile, rawFile);
+  }
+  const rows = (await readFile(rawFile, "utf8"))
+    .split("\n")
+    .filter((l) => l.trim() !== "")
+    .map((l) => calibrateRow(JSON.parse(l) as GridRow, calibration));
+  await writeFile(gridFile, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  return rows.length;
 }

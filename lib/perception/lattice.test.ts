@@ -23,7 +23,7 @@ vi.mock("@/lib/video/ffmpeg", async (orig) => ({
   concat: (inputs: string[], out: string) => concat(inputs, out),
 }));
 
-const { lattice, latticeScene } = await import("@/lib/perception/lattice");
+const { lattice, latticeScene, recalibrateGrid } = await import("@/lib/perception/lattice");
 const { buildQuestions } = await import("@/lib/perception/scout");
 
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
@@ -196,5 +196,40 @@ describe("latticeScene", () => {
   it("throws when every slice fails", async () => {
     decide.mockRejectedValue(new Error("quota"));
     await expect(latticeScene([slice("A", 0)], questions, "s6", undefined, { write: false })).rejects.toThrow(/quota/);
+  });
+});
+
+describe("calibration", () => {
+  const cal = { "red_cup:location:C": { a: 3, b: 0 }, "red_cup:visible:yes": { a: 2, b: 0 } };
+  const sig = (z: number) => 1 / (1 + Math.exp(-z));
+  const lg = (p: number) => Math.log(p / (1 - p));
+
+  it("writes raw answers to grid.raw.jsonl and calibrated ones to grid.jsonl, pVisible from the calibrated visibility", async () => {
+    const rows = await lattice(slice("A", 3), questions, "c1", { calibration: cal });
+    const c = rows.find((r) => r.questionId === "red_cup:location:C")!;
+    expect(c.pYes).toBeCloseTo(sig(3 * lg(0.9)), 9);
+    expect(c.pVisible).toBeCloseTo(sig(2 * lg(0.95)), 9);
+    expect(rows.find((r) => r.questionId === "blue_box:state:open")!.pYes).toBe(0.1); // no curve: unchanged
+    const raw = readFileSync(path.join(dataDir, "scenes", "c1", "grid.raw.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(raw.find((r: { questionId: string }) => r.questionId === "red_cup:location:C").pYes).toBe(0.9);
+    expect(readGrid("c1").find((r: { questionId: string }) => r.questionId === "red_cup:location:C").pYes).toBeCloseTo(c.pYes, 9);
+  });
+
+  it("recalibrateGrid rewrites grid.jsonl from grid.raw.jsonl with no model call", async () => {
+    await lattice(slice("A", 4), questions, "c2", { calibration: cal });
+    decide.mockClear();
+    const n = await recalibrateGrid("c2", { "red_cup:location:C": { a: 1, b: 0 } });
+    expect(n).toBe(questions.length);
+    expect(decide).not.toHaveBeenCalled();
+    expect(readGrid("c2").find((r: { questionId: string }) => r.questionId === "red_cup:location:C").pYes).toBeCloseTo(0.9, 9);
+  });
+
+  it("recalibrateGrid treats an old grid.jsonl as raw the first time and keeps a raw copy", async () => {
+    await lattice(slice("A", 5), questions, "c3");
+    expect(existsSync(path.join(dataDir, "scenes", "c3", "grid.raw.jsonl"))).toBe(false);
+    await recalibrateGrid("c3", cal);
+    expect(existsSync(path.join(dataDir, "scenes", "c3", "grid.raw.jsonl"))).toBe(true);
+    await recalibrateGrid("c3", cal); // twice: still from raw, not double-calibrated
+    expect(readGrid("c3").find((r: { questionId: string }) => r.questionId === "red_cup:location:C").pYes).toBeCloseTo(sig(3 * lg(0.9)), 9);
   });
 });

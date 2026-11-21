@@ -9,12 +9,18 @@ import { describeViews } from "@/lib/perception/views";
 import { latticeScene } from "@/lib/perception/lattice";
 import { loadManifest, writeJson } from "@/lib/store/scene";
 import { questionSet as loadQuestionSet } from "@/lib/perception/questionSets";
+import { GRID_CALIBRATION } from "@/lib/perception/gridCalibration";
 
 export type PerceiveStep = "sync" | "slice" | "views" | "scout" | "lattice";
 
 export interface PerceiveOptions {
   /** Only send the first N slices per camera to the grid (keeps free-tier tests cheap). */
   maxSlicesPerCamera?: number;
+  /**
+   * Per-question Platt curves for the grid. Defaults to GRID_CALIBRATION for the question set; false
+   * turns calibration off. When on, raw answers are also kept in grid.raw.jsonl.
+   */
+  calibration?: Record<string, { a: number; b: number }> | false;
   /** Score only every Nth slice per camera (context clips still use every slice). Default 1. */
   sliceStride?: number;
   /**
@@ -121,8 +127,10 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
       counts.set(s.camera, n + 1);
       return n % stride === 0 && n / stride < max;
     });
+  const calibration = opts.calibration === false ? undefined : (opts.calibration ?? (setName ? GRID_CALIBRATION[setName] : undefined));
   const rows = await latticeScene(used, questions, sceneId, opts.onRows, {
     contextFrom: slices,
+    ...(calibration && Object.keys(calibration).length ? { calibration } : {}),
     ...(contextQuestionIds && contextQuestionIds.length ? { contextQuestionIds } : {}),
     ...(contextSlices !== undefined ? { contextSlices } : {}),
   });
