@@ -2,7 +2,14 @@
 import { describe, expect, it } from "vitest";
 import { LIMITS } from "@/lib/config";
 import type { AgentMenu, Claim, InspectWindowArgs } from "@/lib/types";
-import { InspectWindowArgsSchema, StopArgsSchema, validate } from "@/lib/agent/bridge";
+import {
+  findOverlap,
+  InspectWindowArgsSchema,
+  parseToolCall,
+  StopArgsSchema,
+  validate,
+  validateWindow,
+} from "@/lib/agent/bridge";
 
 const claim: Claim = {
   id: "c1",
@@ -169,5 +176,90 @@ describe("StopArgsSchema", () => {
   it("rejects a missing or empty reason", () => {
     expect(StopArgsSchema.safeParse({}).success).toBe(false);
     expect(StopArgsSchema.safeParse({ reason: "" }).success).toBe(false);
+  });
+});
+
+describe("validateWindow", () => {
+  it("accepts a valid window", () => {
+    expect(validateWindow(args(), menu())).toEqual({ ok: true });
+  });
+
+  it("ignores follow-ups and already-checked windows", () => {
+    const m = menu({ followUpsLeft: 0, alreadyChecked: [{ camera: "A", window: [10, 12] }] });
+    expect(validateWindow(args(), m)).toEqual({ ok: true });
+  });
+
+  it.each([
+    ["excluded camera", { camera_id: "D" as const }],
+    ["outside range", { start_s: 19, end_s: 21 }],
+    ["too short", { start_s: 10, end_s: 10.5 }],
+    ["too long", { start_s: 10, end_s: 15 }],
+    ["NaN", { start_s: Number.NaN }],
+  ])("rejects %s", (_name, bad) => {
+    expect(validateWindow(args(bad), menu()).ok).toBe(false);
+  });
+});
+
+describe("findOverlap", () => {
+  const checked = [
+    { camera: "A" as const, window: [10, 12] as [number, number] },
+    { camera: "B" as const, window: [0, 2] as [number, number] },
+  ];
+
+  it("finds an overlapping window on the same camera", () => {
+    expect(findOverlap("A", [11, 13], checked)).toEqual(checked[0]);
+  });
+
+  it("ignores touching windows and other cameras", () => {
+    expect(findOverlap("A", [12, 14], checked)).toBeUndefined();
+    expect(findOverlap("B", [10, 12], checked)).toBeUndefined();
+  });
+});
+
+describe("parseToolCall", () => {
+  it("parses inspect_window with no dropped fields", () => {
+    expect(parseToolCall("inspect_window", args())).toEqual({
+      ok: true,
+      call: { name: "inspect_window", args: args() },
+      droppedFields: [],
+    });
+  });
+
+  it("reports unknown fields it stripped", () => {
+    const parsed = parseToolCall("inspect_window", { ...args(), label: "Supported", verdict: "x" });
+    expect(parsed).toEqual({
+      ok: true,
+      call: { name: "inspect_window", args: args() },
+      droppedFields: ["label", "verdict"],
+    });
+  });
+
+  it("parses stop and reports its dropped fields", () => {
+    expect(parseToolCall("stop", { reason: "done", confidence: 0.9 })).toEqual({
+      ok: true,
+      call: { name: "stop", args: { reason: "done" } },
+      droppedFields: ["confidence"],
+    });
+  });
+
+  it("rejects a malformed call with a reason naming the bad field", () => {
+    const parsed = parseToolCall("inspect_window", { ...args(), camera_id: "Z", extra: 1 });
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toMatch(/camera_id/);
+    expect(parsed.droppedFields).toEqual(["extra"]);
+  });
+
+  it("rejects an unknown tool", () => {
+    const parsed = parseToolCall("set_label", { label: "Supported" });
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toMatch(/unknown tool.*set_label/i);
+  });
+
+  it("rejects non-object arguments", () => {
+    expect(parseToolCall("stop", "done")).toMatchObject({ ok: false, droppedFields: [] });
+    expect(parseToolCall("stop", null)).toMatchObject({ ok: false, droppedFields: [] });
+    expect(parseToolCall("stop", [])).toMatchObject({ ok: false, droppedFields: [] });
   });
 });
