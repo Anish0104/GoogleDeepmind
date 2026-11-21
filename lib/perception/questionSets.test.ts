@@ -56,3 +56,30 @@ describe("SDG_NEARMISS_QUESTIONS (NVIDIA SDG-Warehouse forklift-human near miss)
     for (const q of SDG_NEARMISS_QUESTIONS) expect(q.text).not.toMatch(/line|crossing/i);
   });
 });
+
+describe("named question sets carry their own registry (entities, people) and motion ids", () => {
+  it("registers every entity its questions are about, with a description, so grounding can join them", async () => {
+    const { QUESTION_SETS, questionSet } = await import("@/lib/perception/questionSets");
+    for (const name of Object.keys(QUESTION_SETS)) {
+      const set = questionSet(name);
+      const ids = new Set(set.entities.map((e) => e.id));
+      for (const q of set.questions) expect(ids.has(q.entityId), `${name}: ${q.entityId}`).toBe(true);
+      for (const e of set.entities) expect(e.description.length).toBeGreaterThan(5);
+      for (const id of set.motionIds) expect(set.questions.some((q) => q.id === id)).toBe(true);
+    }
+  });
+
+  it("uses worker and forklift for the SDG near-miss set, and the worker is also a registered person", async () => {
+    const { questionSet, SDG_NEARMISS_MOTION_QUESTION_IDS, QUESTION_SET_MOTION_IDS } = await import("@/lib/perception/questionSets");
+    const set = questionSet("sdg-nearmiss");
+    expect(set.entities.map((e) => e.id)).toEqual(["worker", "forklift"]);
+    expect(set.people.map((p) => p.id)).toEqual(["worker"]);
+    expect(set.motionIds).toEqual(SDG_NEARMISS_MOTION_QUESTION_IDS);
+    expect(QUESTION_SET_MOTION_IDS["sdg-nearmiss"]).toEqual(SDG_NEARMISS_MOTION_QUESTION_IDS);
+  });
+
+  it("throws on an unknown set name, listing the known ones", async () => {
+    const { questionSet } = await import("@/lib/perception/questionSets");
+    expect(() => questionSet("nope")).toThrow(/sdg-nearmiss/);
+  });
+});

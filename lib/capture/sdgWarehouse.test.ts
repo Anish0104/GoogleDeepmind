@@ -10,7 +10,7 @@ import { HAS_UNZIP } from "@/lib/capture/sdgMasks";
 const dataDir = mkdtempSync(path.join(tmpdir(), "rashomon-sdg-"));
 process.env.DATA_DIR = dataDir;
 
-const { chooseViews, importSdgWarehouse, sliceMidFrames } = await import("@/lib/capture/sdgWarehouse");
+const { chooseViews, importSdgWarehouse, readSdgTruth, sliceMidFrames } = await import("@/lib/capture/sdgWarehouse");
 const { probe } = await import("@/lib/video/ffmpeg");
 
 describe("sliceMidFrames", () => {
@@ -91,6 +91,7 @@ describe.skipIf(!HAS_FFMPEG || !HAS_ZIP || !HAS_UNZIP)("importSdgWarehouse", () 
     expect(res.truthPath).toBe(path.resolve(dataDir, "labels", "sdg_test.truth.json"));
     expect(existsSync(path.join(dataDir, "scenes", "sdg_test", "truth.json"))).toBe(false);
     const truth = JSON.parse(readFileSync(res.truthPath, "utf8"));
+    expect(readSdgTruth(res.truthPath).sceneId).toBe("sdg_test"); // the schema readers use accepts it
     expect(truth.runId).toBe(RUN);
     expect(truth.presynced).toBe(true);
     expect(truth.summary.outcome).toBe("contact");

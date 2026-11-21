@@ -7,13 +7,20 @@ import { sliceScene, type Slice } from "@/lib/capture/slice";
 import { scout } from "@/lib/perception/scout";
 import { latticeScene } from "@/lib/perception/lattice";
 import { loadManifest, writeJson } from "@/lib/store/scene";
+import { questionSet as loadQuestionSet } from "@/lib/perception/questionSets";
 
 export type PerceiveStep = "sync" | "slice" | "scout" | "lattice";
 
 export interface PerceiveOptions {
   /** Only send the first N slices per camera to the grid (keeps free-tier tests cheap). */
   maxSlicesPerCamera?: number;
-  /** A fixed question set (e.g. WAREHOUSE_QUESTIONS); replaces scout's questions in questions.json. */
+  /**
+   * A named question set (see QUESTION_SETS, e.g. "sdg-nearmiss"). Replaces scout entirely: the set's
+   * entities, people and questions are written to entities.json, people.json and questions.json, so their
+   * ids match, and its motion questions go on 2 s clips. Defaults to the manifest's `questionSet` field.
+   */
+  questionSet?: string;
+  /** Fixed questions without a registry; scout still writes entities.json (prefer questionSet). */
   questions?: Question[];
   /**
    * Footage that is already synchronised (e.g. Assembly101's fixed views): skip clap/flash sync and use
@@ -61,11 +68,27 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
   const slices = await sliceScene(manifest, sync, { roi: opts.roi ?? false });
   step("slice", `${slices.length} slices`);
 
-  const scouted = await scout(scoutStills(slices), sceneId);
-  const { entities } = scouted;
-  const questions = opts.questions ?? scouted.questions;
-  if (opts.questions) await writeJson(sceneId, "questions.json", questions);
-  step("scout", `${entities.length} objects: ${entities.map((e) => e.id).join(", ")}; ${questions.length} questions`);
+  const setName = opts.questionSet ?? (manifest as { questionSet?: string }).questionSet;
+  let entities: { id: string }[];
+  let questions: Question[];
+  let contextQuestionIds = opts.contextQuestionIds;
+  if (setName !== undefined) {
+    // A fixed registry: no scout call, and entity ids are the ones the questions use.
+    const set = loadQuestionSet(setName);
+    entities = set.entities;
+    questions = opts.questions ?? set.questions;
+    contextQuestionIds ??= set.motionIds;
+    await writeJson(sceneId, "entities.json", set.entities);
+    await writeJson(sceneId, "people.json", set.people);
+    await writeJson(sceneId, "questions.json", questions);
+    step("scout", `question set ${setName}: ${entities.map((e) => e.id).join(", ")}; ${questions.length} questions (no scout call)`);
+  } else {
+    const scouted = await scout(scoutStills(slices), sceneId);
+    entities = scouted.entities;
+    questions = opts.questions ?? scouted.questions;
+    if (opts.questions) await writeJson(sceneId, "questions.json", questions);
+    step("scout", `${entities.length} objects: ${entities.map((e) => e.id).join(", ")}; ${questions.length} questions`);
+  }
 
   const max = opts.maxSlicesPerCamera;
   const counts = new Map<string, number>();
@@ -78,7 +101,7 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
           return n < max;
         });
   const rows = await latticeScene(used, questions, sceneId, opts.onRows, {
-    ...(opts.contextQuestionIds ? { contextQuestionIds: opts.contextQuestionIds } : {}),
+    ...(contextQuestionIds && contextQuestionIds.length ? { contextQuestionIds } : {}),
   });
   step("lattice", `${rows.length} grid rows from ${used.length} slices`);
 

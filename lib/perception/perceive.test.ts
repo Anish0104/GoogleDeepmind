@@ -67,6 +67,25 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", () => {
     expect(saved.map((q: { id: string }) => q.id)).toEqual(WAREHOUSE_QUESTIONS.map((q) => q.id));
   }, 120_000);
 
+  it("with a named question set, writes the set's entities, people and questions and skips scout", async () => {
+    const { questionSet } = await import("@/lib/perception/questionSets");
+    const set = questionSet("sdg-nearmiss");
+    generateJson.mockClear();
+    decide.mockClear();
+    const onStep = vi.fn();
+    const res = await perceiveScene("pre1", { maxSlicesPerCamera: 2, presynced: true, questionSet: "sdg-nearmiss", onStep });
+    expect(generateJson).not.toHaveBeenCalled(); // no scout model call
+    const read = (f: string) => JSON.parse(readFileSync(path.join(dataDir, "scenes", "pre1", f), "utf8"));
+    expect(read("entities.json")).toEqual(set.entities);
+    expect(read("people.json")).toEqual(set.people);
+    expect(read("questions.json").map((q: { id: string }) => q.id)).toEqual(set.questions.map((q) => q.id));
+    expect(res.entities).toBe(2);
+    expect(res.rows).toBe(4 * set.questions.length);
+    // motion questions went to the context clips: one extra decide() per slice
+    expect(decide).toHaveBeenCalledTimes(2 * 4);
+    expect(onStep.mock.calls.find((c) => c[0] === "scout")![1]).toMatch(/question set sdg-nearmiss/);
+  }, 120_000);
+
   it("skips sync for presynced footage: zero offsets, no sync.json", async () => {
     const onStep = vi.fn();
     const res = await perceiveScene("pre1", { maxSlicesPerCamera: 1, presynced: true, onStep });
