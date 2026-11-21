@@ -82,6 +82,23 @@ describe("exampleWindow", () => {
     expect(passes(short, ex)).toBe(true);
   });
 
+  it("always passes validate() under the min(1 s, claim length) overlap rule, for many claim windows and ranges", () => {
+    let tried = 0;
+    for (let start = 0; start <= 6; start += 0.7) {
+      for (const len of [0.2, 0.5, 0.99, 1, 1.5, 3, 4, 6.5]) {
+        for (const pad of [0, 0.3, 3]) {
+          const w: [number, number] = [start, start + len];
+          const m = menu({ claim: { ...claim, window: w }, allowedRangeS: [Math.max(0, w[0] - pad), w[1] + pad] });
+          const ex = exampleWindow(m, "B");
+          if (!ex) continue; // e.g. a range too small for a 1 s clip
+          tried++;
+          expect(passes(m, ex), `claim ${w.join("–")} pad ${pad}: ${JSON.stringify(ex)}`).toBe(true);
+        }
+      }
+    }
+    expect(tried).toBeGreaterThan(150);
+  });
+
   it("null when no included camera has a valid clip left", () => {
     const m = menu({ alreadyChecked: (["A", "B", "C"] as const).map((camera) => ({ camera, window: [21, 24] as [number, number] })) });
     expect(exampleWindow(m, "A")).toBeNull();
@@ -91,9 +108,9 @@ describe("exampleWindow", () => {
 describe("rejectionFeedback", () => {
   it("states the bridge's reason, the claim window and a valid example on the same camera", () => {
     const m = menu();
-    const step = rejected("B", 18, 21, "Clip must overlap the claim window 21–24 s.");
+    const step = rejected("B", 18, 21, "Clip must share at least 1 s with the claim window 21–24 s.");
     expect(rejectionFeedback(step, m)).toEqual({
-      error: "Clip must overlap the claim window 21–24 s.",
+      error: "Clip must share at least 1 s with the claim window 21–24 s.",
       claimWindowS: [21, 24],
       validExample: { camera_id: "B", start_s: 21, end_s: 24 },
     });

@@ -684,8 +684,9 @@ describe("checkedWindowFor", () => {
     expect(checkedWindowFor([21.5, 23.5], [21, 24], [18, 27])).toEqual([21.5, 23.5]);
   });
 
-  it("widens anything under 1 s evenly to 1 s, staying inside allowedRangeS", () => {
-    expect(checkedWindowFor([23.6, 26], [21, 24], [18, 27])).toEqual([23.3, 24.3]); // 0.4 s -> centred 1 s
+  it("widens to 1 s only when the claim window itself is shorter than 1 s, staying inside allowedRangeS", () => {
+    // A claim window of 1 s or more is never widened (validate() now guarantees >= 1 s of overlap with it).
+    expect(checkedWindowFor([23, 26], [21, 24], [18, 27])).toEqual([23, 24]);
     expect(checkedWindowFor([20, 23], [21, 21.4], [18, 27])).toEqual([20.7, 21.7]); // short claim window
     expect(checkedWindowFor([20, 23], [21, 21.4], [21, 27])).toEqual([21, 22]); // pushed in at the range start
     expect(checkedWindowFor([26.8, 28], [26.5, 27], [18, 27])).toEqual([26, 27]); // pushed in at the range end

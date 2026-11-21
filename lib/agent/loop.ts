@@ -97,8 +97,9 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * The window actually checked for a valid inspect_window call: the requested window clamped to the claim
- * window, widened evenly to CLIP_MIN_S inside allowedRangeS if that is shorter. validate() already guaranteed
- * the request overlaps the claim window, so the clamp is never empty.
+ * window. validate() guarantees at least min(CLIP_MIN_S, claim window length) of overlap, so the clamp is
+ * CLIP_MIN_S or more unless the claim window itself is shorter; only then is it widened evenly to CLIP_MIN_S
+ * inside allowedRangeS.
  */
 export function checkedWindowFor(
   requested: [number, number],
@@ -108,7 +109,7 @@ export function checkedWindowFor(
   const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
   let start = Math.max(requested[0], claimWindow[0]);
   let end = Math.min(requested[1], claimWindow[1]);
-  if (end - start < LIMITS.CLIP_MIN_S) {
+  if (claimWindow[1] - claimWindow[0] < LIMITS.CLIP_MIN_S) {
     const [lo, hi] = allowedRangeS;
     const mid = (start + end) / 2;
     start = mid - LIMITS.CLIP_MIN_S / 2;

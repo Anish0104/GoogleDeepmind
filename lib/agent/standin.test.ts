@@ -97,13 +97,13 @@ describe("buildUserMessage", () => {
       action: "rejected",
       args: { camera_id: "B", start_s: 7, end_s: 10, crop: "full", reason: "just before" },
       result: undefined,
-      rejectionReason: "Clip must overlap the claim window 10–14 s.",
+      rejectionReason: "Clip must share at least 1 s with the claim window 10–14 s.",
     };
     const msg = buildUserMessage(menu, [rejected]);
     const steps = JSON.parse(msg.slice(msg.indexOf("Your earlier steps: ") + 20, msg.lastIndexOf("]") + 1)) as unknown[];
     expect(steps[0]).toMatchObject({
       action: "rejected",
-      rejectionReason: "Clip must overlap the claim window 10–14 s.",
+      rejectionReason: "Clip must share at least 1 s with the claim window 10–14 s.",
       claimWindowS: [10, 14],
       validExample: { camera_id: "B", start_s: 10, end_s: 14 },
     });
