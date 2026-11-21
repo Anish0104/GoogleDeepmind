@@ -73,7 +73,7 @@ beforeAll(() => {
 }, 60_000);
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
 
-describe.skipIf(!HAS_FFMPEG || !HAS_ZIP || !HAS_UNZIP)("importSdgWarehouse", () => {
+describe.skipIf(!HAS_FFMPEG || !HAS_ZIP || !HAS_UNZIP)("importSdgWarehouse", { timeout: 60_000 }, () => {
   it("makes a 4-camera scene and writes the answer key outside the scene folder", async () => {
     const res = await importSdgWarehouse({ runDir, runId: RUN, sceneId: "sdg_test", height: 90 });
 

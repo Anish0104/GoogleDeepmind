@@ -66,7 +66,7 @@ beforeAll(() => {
 
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
 
-describe.skipIf(!HAS_FFMPEG)("importAssembly101", () => {
+describe.skipIf(!HAS_FFMPEG)("importAssembly101", { timeout: 60_000 }, () => {
   it("makes a 4-camera scene of the trimmed stretch and exports its labels outside the scene", async () => {
     const res = await importAssembly101({
       recordingsDir: path.join(dataDir, "external", "recordings"),

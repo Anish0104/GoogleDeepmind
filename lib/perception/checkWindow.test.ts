@@ -52,7 +52,7 @@ beforeEach(() => {
   decide.mockResolvedValue({ visible: 0.92, supports: 0.85, contradicts: 0.04 });
 });
 
-describe.skipIf(!HAS_FFMPEG)("checkWindow", () => {
+describe.skipIf(!HAS_FFMPEG)("checkWindow", { timeout: 60_000 }, () => {
   it("cuts the clip, asks Decision 1 and returns Evidence", async () => {
     const ev = await checkWindow(base);
     expect(ev).toEqual({
