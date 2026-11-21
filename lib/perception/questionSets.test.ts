@@ -47,8 +47,13 @@ describe("SDG_NEARMISS_QUESTIONS (NVIDIA SDG-Warehouse forklift-human near miss)
       expect(q.id.startsWith(`${q.entityId}:${q.predicate}:`)).toBe(true);
       expect(q.text).toMatch(/\bno\b/i);
     }
-    expect(SDG_NEARMISS_MOTION_QUESTION_IDS).toEqual(["forklift:state:moving", "worker:state:dodging"]);
+    expect(SDG_NEARMISS_MOTION_QUESTION_IDS).toEqual(["forklift:state:touching_worker", "forklift:state:moving", "worker:state:dodging"]);
     expect(QUESTION_SETS["sdg-nearmiss"]).toBe(SDG_NEARMISS_QUESTIONS);
+  });
+
+  it("asks touching about the forks too (they run under the worker's feet, the body rarely touches)", async () => {
+    const { SDG_NEARMISS_QUESTIONS } = await import("@/lib/perception/questionSets");
+    expect(SDG_NEARMISS_QUESTIONS.find((q) => q.id === "forklift:state:touching_worker")!.text).toMatch(/forks.*feet/);
   });
 
   it("never mentions crossing lines, which these scenes do not have", async () => {
@@ -75,6 +80,8 @@ describe("named question sets carry their own registry (entities, people) and mo
     expect(set.entities.map((e) => e.id)).toEqual(["worker", "forklift"]);
     expect(set.people.map((p) => p.id)).toEqual(["worker"]);
     expect(set.motionIds).toEqual(SDG_NEARMISS_MOTION_QUESTION_IDS);
+    expect(set.contextSlices).toBe(8); // 4 s clips: touching separated contact from near miss there, not on 0.5 s slices
+    expect(questionSet("warehouse").contextSlices).toBe(4);
     expect(QUESTION_SET_MOTION_IDS["sdg-nearmiss"]).toEqual(SDG_NEARMISS_MOTION_QUESTION_IDS);
   });
 

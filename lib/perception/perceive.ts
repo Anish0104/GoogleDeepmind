@@ -72,12 +72,14 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
   let entities: { id: string }[];
   let questions: Question[];
   let contextQuestionIds = opts.contextQuestionIds;
+  let contextSlices: number | undefined;
   if (setName !== undefined) {
     // A fixed registry: no scout call, and entity ids are the ones the questions use.
     const set = loadQuestionSet(setName);
     entities = set.entities;
     questions = opts.questions ?? set.questions;
     contextQuestionIds ??= set.motionIds;
+    contextSlices = set.contextSlices;
     await writeJson(sceneId, "entities.json", set.entities);
     await writeJson(sceneId, "people.json", set.people);
     await writeJson(sceneId, "questions.json", questions);
@@ -102,6 +104,7 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
         });
   const rows = await latticeScene(used, questions, sceneId, opts.onRows, {
     ...(contextQuestionIds && contextQuestionIds.length ? { contextQuestionIds } : {}),
+    ...(contextSlices !== undefined ? { contextSlices } : {}),
   });
   step("lattice", `${rows.length} grid rows from ${used.length} slices`);
 
