@@ -203,12 +203,24 @@ export function fixedRuleTurn({ menu }: TurnInput): Promise<TurnOutput> {
 
 export type HMode = "offline" | "model";
 
+/** A rejected step: the bridge's reason and, when the call parsed, the camera and window the agent sent. */
+export interface HRejection {
+  camera?: CameraId;
+  start?: number;
+  end?: number;
+  /** For a call that didn't parse: what the agent sent, as the loop recorded it (raw JSON, cut to 300 chars). */
+  sent?: string;
+  reason: string;
+}
+
 export interface HRow {
   claimId: string;
   kind: Kind;
   initial: Verdict;
   final: Verdict;
   steps: string;
+  /** Every rejected step, in order (each one used up a check). Report only; not part of pass/fail. */
+  rejections: HRejection[];
 }
 
 export interface HReport {
@@ -237,6 +249,14 @@ const describeSteps = (steps: AgentStep[]) =>
     )
     .join(", ");
 
+const rejectionsOf = (steps: AgentStep[]): HRejection[] =>
+  steps
+    .filter((s) => s.action === "rejected")
+    .map((s) => ({
+      ...("camera_id" in s.args ? { camera: s.args.camera_id, start: s.args.start_s, end: s.args.end_s } : { sent: s.args.reason }),
+      reason: s.rejectionReason ?? "(no reason recorded)",
+    }));
+
 export async function runKillTestH(
   mode: HMode = "offline",
   /** Offline only: replaces the fixed rule (tests use it to show a worse rule fails). */
@@ -262,7 +282,14 @@ export async function runKillTestH(
     };
     const out = await startAgent("skeptic", claim, SCENE_ID, deps);
     if (!out.ran) throw new Error(`kill test H: the Skeptic refused ${claim.id}: ${out.reason}`);
-    rows.push({ claimId: claim.id, kind: c.kind, initial: c.initial, final: out.run.result.verdict, steps: describeSteps(out.run.steps) });
+    rows.push({
+      claimId: claim.id,
+      kind: c.kind,
+      initial: c.initial,
+      final: out.run.result.verdict,
+      steps: describeSteps(out.run.steps),
+      rejections: rejectionsOf(out.run.steps),
+    });
   }
 
   const right = rows.filter((r) => r.kind === "right");
@@ -294,7 +321,12 @@ export function formatReport(r: HReport): string {
     `${r.pass ? "PASS" : "FAIL"}`,
     "",
     `${pad("claim", 7)}${pad("kind", 7)}${pad("initial", 14)}${pad("final", 14)}steps`,
-    ...r.rows.map((x) => `${pad(x.claimId, 7)}${pad(x.kind, 7)}${pad(x.initial, 14)}${pad(x.final, 14)}${x.steps}`),
+    ...r.rows.flatMap((x) => [
+      `${pad(x.claimId, 7)}${pad(x.kind, 7)}${pad(x.initial, 14)}${pad(x.final, 14)}${x.steps}`,
+      ...x.rejections.map(
+        (j) => `       rejected: ${j.camera ? `camera ${j.camera} ${j.start}–${j.end} s` : `(unparsed call) ${j.sent}`}: ${j.reason}`,
+      ),
+    ]),
   ];
   if (r.mode === "model") lines.push("", `tokens: ${r.tokens}  cost: $${r.costUsd.toFixed(6)}`);
   return lines.join("\n");

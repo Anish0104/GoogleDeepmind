@@ -53,6 +53,36 @@ describe("kill test H (offline: safety checks only)", { timeout: 60_000 }, () =>
     expect(r.newContradicted).toBe(0);
   });
 
+  it("lists each rejected step's reason and the camera/window the agent sent, under the claim's row", async () => {
+    // First call out of range (rejected, uses a check), second call malformed (rejected), then forced stop.
+    let n = 0;
+    const clumsy = async ({ menu }: TurnInput): Promise<TurnOutput> => {
+      n++;
+      const usage = { tokens: 0, costUsd: 0, latencyMs: 0 };
+      if (n % 2 === 1) {
+        const [, w1] = menu.claim.window;
+        return { name: "inspect_window", args: { camera_id: "A", start_s: w1 + 20, end_s: w1 + 22, crop: "full", reason: "far away" }, ...usage };
+      }
+      return { name: "inspect_window", args: { camera_id: "Z" }, ...usage };
+    };
+    const r = await runKillTestH("offline", clumsy);
+    const w1 = r.rows.find((x) => x.claimId === "w1")!;
+    expect(w1.steps).toBe("rejected, rejected, stop");
+    expect(w1.rejections).toEqual([
+      { camera: "A", start: expect.any(Number), end: expect.any(Number), reason: expect.stringMatching(/outside the allowed range/) },
+      { sent: 'Unparsed inspect_window call: {"camera_id":"Z"}', reason: expect.stringMatching(/Invalid inspect_window arguments.*camera_id/) },
+    ]);
+
+    const text = formatReport(r);
+    const at = text.split("\n").findIndex((l) => l.startsWith("w1 "));
+    const under = text.split("\n").slice(at + 1, at + 3);
+    expect(under[0]).toMatch(/^\s+rejected: camera A \d+(\.\d+)?–\d+(\.\d+)? s: Window .* is outside the allowed range/);
+    expect(under[1]).toMatch(/^\s+rejected: \(unparsed call\) Unparsed inspect_window call: \{"camera_id":"Z"\}: Invalid inspect_window arguments/);
+    // Same pass/fail rules: nothing was downgraded, so it fails.
+    expect(r.wrongDowngraded).toBe(0);
+    expect(r.pass).toBe(false);
+  });
+
   it("formats the report with the counts, PASS/FAIL and one line per claim", () => {
     const text = formatReport(report);
     expect(text).toMatch(/^H offline: safety checks only/);
@@ -61,6 +91,7 @@ describe("kill test H (offline: safety checks only)", { timeout: 60_000 }, () =>
     expect(text).toMatch(/wrong labels downgraded: \d of 5 \(need >= 3\)/);
     expect(text).toMatch(/\nPASS\n/);
     expect(text.split("\n").filter((l) => /^(r|w)\d /.test(l))).toHaveLength(10);
+    expect(text).not.toMatch(/rejected:/); // the fixed rule never makes a rejected call
     expect(text).not.toMatch(/tokens:/); // only shown in model mode
   });
 });
