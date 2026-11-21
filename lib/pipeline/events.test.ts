@@ -147,6 +147,24 @@ describe("sceneEventStream", () => {
     ac.abort();
   });
 
+  it("a steps file shorter than what was sent: a reset event, then every line again", async () => {
+    const { state, readers } = fakeScene();
+    state.steps = [step(1), step(2), step(3)].map((s) => JSON.stringify(s)).join("\n") + "\n";
+    const ac = new AbortController();
+    const f = frames(sceneEventStream("s1", { signal: ac.signal, readers, pollMs: 5, heartbeatMs: 10_000 }));
+    await f.take(6); // run, 2 results, 3 steps
+
+    state.steps = JSON.stringify(step(1, { mode: "standin" })) + "\n"; // e.g. a replay copied over the scene
+    expect(await f.take(2)).toEqual([
+      { event: "reset", data: { reason: "steps-rewritten" } },
+      { event: "step", data: step(1, { mode: "standin" }) },
+    ]);
+
+    await sleep(20); // no repeat reset while the file stays the same
+    expect(f.queue.filter((e) => !e.comment)).toEqual([]);
+    ac.abort();
+  });
+
   it("sends heartbeat comments", async () => {
     const { readers } = fakeScene();
     const ac = new AbortController();

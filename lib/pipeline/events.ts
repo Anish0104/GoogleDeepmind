@@ -2,7 +2,8 @@
 // agent-steps.jsonl), so it works across processes and for replay scenes.
 // On connect: the full current state (run, every result, every step line). Then, polling every pollMs, only
 // changes: "run" when run.json changes, "result" when a claim's label changes (or a new claim appears),
-// "step" for each new complete line of agent-steps.jsonl (carrying mode and implicitStop as written).
+// "step" for each new complete line of agent-steps.jsonl (carrying mode and implicitStop as written), and
+// "reset" { reason: "steps-rewritten" } when that file gets shorter than what was sent, before resending it.
 // A heartbeat comment every heartbeatMs keeps proxies from closing the connection. Stops on client abort.
 import { readFile } from "node:fs/promises";
 import { loadResults, NotFoundError, readJson, scenePath } from "@/lib/store/scene";
@@ -103,7 +104,11 @@ export function sceneEventStream(sceneId: string, opts: SceneStreamOptions): Rea
         }
         try {
           const complete = (await readers.readSteps(sceneId)).split("\n").slice(0, -1); // last piece may be partial
-          if (complete.length < linesSent) linesSent = 0; // file was replaced: start over
+          if (complete.length < linesSent) {
+            // The file was replaced (e.g. a replay copied over): tell the board to drop its steps, then resend.
+            send(frame("reset", { reason: "steps-rewritten" }));
+            linesSent = 0;
+          }
           for (const line of complete.slice(linesSent)) {
             if (!line.trim()) continue;
             try {
