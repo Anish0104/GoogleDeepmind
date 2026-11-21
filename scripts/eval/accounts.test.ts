@@ -46,11 +46,11 @@ describe("buildCase: contact scene", () => {
 
   it("true account: every statement true, with the right wording", () => {
     expect(Object.fromEntries(Object.values(t).map((s) => [s.kind, [s.text, s.truth]]))).toEqual({
-      contact: ["The forklift hit me.", true],
-      dodge: ["I got out of the way before it reached me.", true], // 2.3 < 3.233
-      stop: ["The forklift didn't stop before it reached me.", true], // never stopped
-      moving: ["It kept moving the whole time.", true],
-      time: ["It hit me about 3 seconds in.", true], // round(3.167)
+      contact: ["The forklift hit the worker.", true],
+      dodge: ["The worker dodged out of the way before the forklift got there.", true], // 2.3 < 3.233
+      stop: ["The forklift didn't stop before it reached the worker.", true], // never stopped
+      moving: ["The forklift kept moving the whole time.", true],
+      time: ["The forklift hit the worker about 3 seconds in.", true], // round(3.167)
     });
   });
 
@@ -91,7 +91,7 @@ describe("buildCase: contact scene", () => {
     const m = c.accounts[1]!;
     expect(m.transcript).toBe(transcriptOf(m.statements));
     expect(c.accounts[0]!.transcript).toBe(
-      "The forklift hit me. I got out of the way before it reached me. The forklift didn't stop before it reached me. It kept moving the whole time. It hit me about 3 seconds in.",
+      "The forklift hit the worker. The worker dodged out of the way before the forklift got there. The forklift didn't stop before it reached the worker. The forklift kept moving the whole time. The forklift hit the worker about 3 seconds in.",
     );
   });
 });
@@ -99,11 +99,11 @@ describe("buildCase: contact scene", () => {
 describe("buildCase: near miss with a hidden-worker moment", () => {
   it("true account: near-miss wording, time from minGapT", () => {
     const t = by(buildCase(nearTruth, ALL), "true");
-    expect(t.contact!.text).toBe("It never touched me.");
-    expect(t.dodge!.text).toBe("I didn't get out of the way before it reached me.");
-    expect(t.stop!.text).toBe("The forklift stopped before it reached me."); // 5.5 < 6.1
-    expect(t.moving!.text).toBe("It stopped at some point.");
-    expect(t.time!.text).toBe("It came closest about 6 seconds in.");
+    expect(t.contact!.text).toBe("The forklift never touched the worker.");
+    expect(t.dodge!.text).toBe("The worker didn't dodge out of the way before the forklift got there.");
+    expect(t.stop!.text).toBe("The forklift stopped before it reached the worker."); // 5.5 < 6.1
+    expect(t.moving!.text).toBe("The forklift stopped at some point.");
+    expect(t.time!.text).toBe("The forklift came closest to the worker about 6 seconds in.");
     expect(t.contact!.moment).toEqual([5.1, 7.1]);
   });
 
@@ -130,8 +130,8 @@ describe("buildCase: missing fields", () => {
     const t = fakeTruth({ sceneId: "fk_old", outcome: "contact", contact: [3, 3.3], minGapT: 3.1, omit: ["forkliftStopT", "dodgeStartT", "near"] });
     const c = buildCase(t, ALL);
     const s = by(c, "true");
-    expect(s.moving!.text).toBe("It kept moving the whole time.");
-    expect(s.stop!.text).toBe("The forklift didn't stop before it reached me.");
+    expect(s.moving!.text).toBe("The forklift kept moving the whole time.");
+    expect(s.stop!.text).toBe("The forklift didn't stop before it reached the worker.");
     expect(s.dodge).toBeUndefined();
     expect(c.skipped).toEqual([{ kind: "dodge", reason: "answer key has no summary.dodgeStartT" }]);
   });

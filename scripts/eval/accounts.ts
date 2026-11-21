@@ -1,13 +1,16 @@
 // OWNER: Dev 3. Builds the eval accounts for one warehouse scene from its answer key (pure, deterministic).
 // Two accounts per scene: "true" (every statement true) and "mixed" (2 statements flipped to false).
 //
-// Statements (first person, the worker), each with a true and a false wording:
-//   contact  "The forklift hit me." / "It never touched me."                      truth: outcome
-//   dodge    "I got out of the way before it reached me." (/ "I didn't …")         dodgeStartT < minGapT
-//   stop     "The forklift stopped before it reached me." (/ "… didn't stop …")    forkliftStopT < minGapT
-//   moving   "It kept moving the whole time." / "It stopped at some point."       forkliftStopT == null
-//   time     "It hit me about N seconds in." (contact, N = round(contact[0])) or
-//            "It came closest about N seconds in." (near miss, N = round(minGapT)); false: N shifted by >= 3 s
+// Statements (third person: a bystander witness), one sentence each, with a true and a false wording:
+//   contact  "The forklift hit the worker." / "The forklift never touched the worker."   truth: outcome
+//   dodge    "The worker dodged out of the way before the forklift got there." (/ "… didn't dodge …")
+//                                                                                    dodgeStartT < minGapT
+//   stop     "The forklift stopped before it reached the worker." (/ "… didn't stop …")  forkliftStopT < minGapT
+//   moving   "The forklift kept moving the whole time." / "The forklift stopped at some point."
+//                                                                                    forkliftStopT == null
+//   time     "The forklift hit the worker about N seconds in." (contact, N = round(contact[0])) or
+//            "The forklift came closest to the worker about N seconds in." (near miss, N = round(minGapT));
+//            false: N shifted by >= 3 s
 // moment: contact window (or minGapT) +/- 1 s, clamped to the clip; "moving" uses the whole clip.
 // expected: Insufficient if no included camera sees the worker in any slice covering the moment, else
 //   Supported for a true statement and Contradicted for a false one.
@@ -96,34 +99,37 @@ function variants(truth: Truth, next: () => number): { list: Variants[]; skipped
   const skip = (kind: StatementKind, field: string) => skipped.push({ kind, reason: `answer key has no ${field}` });
 
   if (moment) {
-    list.push({ kind: "contact", trueText: hit ? "The forklift hit me." : "It never touched me.", falseText: hit ? "It never touched me." : "The forklift hit me.", moment });
+    const hitText = "The forklift hit the worker.";
+    const missText = "The forklift never touched the worker.";
+    list.push({ kind: "contact", trueText: hit ? hitText : missText, falseText: hit ? missText : hitText, moment });
   } else skip("contact", hit ? "summary.contact or summary.minGapT" : "summary.minGapT");
 
   if (moment && s.minGapT !== undefined && s.dodgeStartT !== undefined) {
     const dodged = s.dodgeStartT !== null && s.dodgeStartT < s.minGapT;
-    const pos = "I got out of the way before it reached me.";
-    const neg = "I didn't get out of the way before it reached me.";
+    const pos = "The worker dodged out of the way before the forklift got there.";
+    const neg = "The worker didn't dodge out of the way before the forklift got there.";
     list.push({ kind: "dodge", trueText: dodged ? pos : neg, falseText: dodged ? neg : pos, moment });
   } else skip("dodge", s.dodgeStartT === undefined ? "summary.dodgeStartT" : "summary.minGapT");
 
   if (moment && s.minGapT !== undefined) {
     const stopped = stopT !== null && stopT < s.minGapT;
-    const pos = "The forklift stopped before it reached me.";
-    const neg = "The forklift didn't stop before it reached me.";
+    const pos = "The forklift stopped before it reached the worker.";
+    const neg = "The forklift didn't stop before it reached the worker.";
     list.push({ kind: "stop", trueText: stopped ? pos : neg, falseText: stopped ? neg : pos, moment });
   } else skip("stop", "summary.minGapT");
 
   const kept = stopT === null;
   list.push({
     kind: "moving",
-    trueText: kept ? "It kept moving the whole time." : "It stopped at some point.",
-    falseText: kept ? "It stopped at some point." : "It kept moving the whole time.",
+    trueText: kept ? "The forklift kept moving the whole time." : "The forklift stopped at some point.",
+    falseText: kept ? "The forklift stopped at some point." : "The forklift kept moving the whole time.",
     moment: [0, d],
   });
 
   const n = hit ? (s.contact ? Math.round(s.contact[0]) : null) : s.minGapT !== undefined ? Math.round(s.minGapT) : null;
   if (moment && n !== null) {
-    const say = (k: number) => (hit ? `It hit me about ${k} seconds in.` : `It came closest about ${k} seconds in.`);
+    const say = (k: number) =>
+      hit ? `The forklift hit the worker about ${k} seconds in.` : `The forklift came closest to the worker about ${k} seconds in.`;
     const shifts: number[] = [];
     for (let k = 0; k <= Math.floor(d); k++) if (Math.abs(k - n) >= 3) shifts.push(k);
     const falseN = shifts.length ? shifts[Math.floor(next() * shifts.length)]! : undefined;

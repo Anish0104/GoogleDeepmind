@@ -24,7 +24,11 @@ Each scene must already be perceived (`POST /api/scene/<id>/run` → status `per
   otherwise Supported for a true statement and Contradicted for a false one.
 - **Run:** each account runs on its own clone of the scene (`<sceneId>__<account>`): Dev 2's `runAccount()`
   (claims → grounding → evidence → citation → audit → verdict), then our agents (`POST .../agents`).
-- **Scoring:** extracted claims are matched to statements by word overlap (negation-aware); a statement with no
-  match is an extraction miss. **Critical error** = Supported on a false statement or Contradicted on a true one
-  (target 0). **Coverage loss** = Insufficient where a decision was possible. **Overreach** = a label where the
-  worker wasn't visible. Rates carry 95% Wilson intervals.
+- **Statements** are a bystander's, in the third person, one sentence each (e.g. "The forklift hit the worker.").
+- **Scoring:** each extracted claim is matched to at most one statement, on word overlap or containment (a claim
+  split off a statement, or the claim's object + action, inside it), negation-aware. A statement with no match
+  is an extraction miss; a claim with no statement is listed as an extra claim. **Critical error** = Supported on
+  a false statement or Contradicted on a true one (target 0). **Coverage loss** = Insufficient where a decision
+  was possible. **Overreach** = a label where the worker wasn't visible. Rates carry 95% Wilson intervals.
+- **Grid column:** the claim re-grounded as runAccount() grounds it, and the best grid score for that question
+  on included cameras near the moment, against the 0.8 threshold; "ungrounded" gives Dev 2's reason.
