@@ -1,7 +1,7 @@
 // OWNER: Dev 2. Spoken account -> claims -> initial labels. Input: {transcript}. Output: ClaimResult[].
 // The pipeline and its failure policy live in lib/truth/account.ts; this file only maps HTTP.
 // 200: ClaimResult[] (one per extracted claim, in order; also saved to claims.json and results.json).
-// 400 bad scene id or body · 404 unknown scene · 422 malformed manifest or scene file ·
+// 400 bad scene id or body · 404 unknown scene · 422 malformed manifest or scene file, or no verifiable claim in the statement ·
 // 429 budget hard stop · 502 claim extraction failed · 503 budget could not be checked · 500 otherwise.
 import { NextResponse } from "next/server";
 import { AccountError, runAccount } from "@/lib/truth/account";
@@ -18,7 +18,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     return NextResponse.json(await runAccount(id, transcript));
   } catch (e) {
-    if (e instanceof AccountError) return NextResponse.json({ error: e.message }, { status: e.status });
+    if (e instanceof AccountError) return NextResponse.json({ error: e.message, ...(e.code ? { code: e.code } : {}) }, { status: e.status });
     console.error("[account] unexpected failure", e);
     return NextResponse.json({ error: "Account processing failed." }, { status: 500 });
   }

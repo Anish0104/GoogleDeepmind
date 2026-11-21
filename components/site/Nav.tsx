@@ -1,5 +1,5 @@
 // OWNER: Dev 4. The floating glass nav pill: brand, the five screens with a sliding active
-// pill, the live chip (clock and camera bars) and the board button.
+// pill, the live chip (clock and camera bars) and the New Investigation button.
 "use client";
 
 import Link from "next/link";
@@ -201,12 +201,12 @@ export function Nav() {
           {divider("hidden min-[1180px]:block")}
           <LiveChip />
           <Link
-            href="/board"
+            href="/new"
             className="rs-cta-btn"
             style={{ display: "flex", alignItems: "center", gap: 8, height: 36, background: "#ECE6DA", color: "#060709", border: 0, borderRadius: 999, padding: "0 16px", fontSize: 14, lineHeight: "20px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
           >
             <PlayGlyph />
-            Open board
+            New Investigation
           </Link>
           <button
             type="button"

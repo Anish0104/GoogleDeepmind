@@ -157,6 +157,9 @@ export function Hero({
             <PlayGlyph w={8} h={10} />
             Open the board
           </Link>
+          <Link href="/new" className="rs-btn rs-btn-ghost" style={{ padding: "15px 26px", fontSize: 15, fontWeight: 600, color: "#ECE6DA", borderColor: "rgba(255,90,71,0.55)" }}>
+            New Investigation →
+          </Link>
           <Link href="/capture" className="rs-btn rs-btn-ghost" style={{ padding: "15px 26px", fontSize: 15, fontWeight: 500, color: "#ECE6DA" }}>
             Start from capture →
           </Link>
