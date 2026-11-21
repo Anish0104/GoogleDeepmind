@@ -48,6 +48,9 @@ import {
   normText,
   stableHash,
   stripArticles,
+  isNegated,
+  isPersistent,
+  isTemporallyOrdered,
   withoutArticles,
 } from "@/lib/truth/text";
 
@@ -347,7 +350,12 @@ export function parseClaimsResponse(
     const timeIsPrecise = c.time.kind === "exact";
     const window: [number, number] = [start, end];
 
-    const key = JSON.stringify([normText(actor), stripArticles(object), action, window, timeIsPrecise]);
+    // A negated ("never touched"), persistent ("stayed clear") or temporally ordered ("stopped before
+    // reaching") claim must not be merged with its plain twin: grounding treats them differently. Markers
+    // are added only for such claims, so every plain claim keeps its existing id.
+    const markers = [isNegated(c.text) && "negated", isPersistent(c.text) && "persistent", isTemporallyOrdered(c.text) && "ordered"].filter(Boolean);
+    const base = [normText(actor), stripArticles(object), action, window, timeIsPrecise];
+    const key = JSON.stringify(markers.length > 0 ? [...base, ...markers] : base);
     if (seen.has(key)) return reject("duplicate of an earlier claim");
     seen.add(key);
 
