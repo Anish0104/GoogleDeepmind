@@ -21,6 +21,7 @@ import type {
   Verdict,
 } from "@/lib/types";
 import { parseToolCall, validate } from "@/lib/agent/bridge";
+import { withoutExcluded } from "@/lib/agent/eligibility";
 import { logStep } from "@/lib/agent/log";
 import { buildMenu, consume } from "@/lib/agent/menu";
 
@@ -238,7 +239,8 @@ function applyEvidence(
   d: AgentDeps,
 ): Applied {
   const withEvidence: ClaimResult = { ...prev, evidence: [...prev.evidence, evidence], audit: cited };
-  const next = d.verdict(withEvidence.evidence, claim, cited);
+  // Excluded cameras never count toward a label, even if their evidence is stored in the result.
+  const next = d.verdict(withoutExcluded(withEvidence.evidence, d.start.manifest.excludedCameras), claim, cited);
   if (next === prev.verdict) return { ok: true, result: withEvidence };
 
   const reason = `${args.reason} (clip ${evidence.clipId})`;

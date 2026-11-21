@@ -362,6 +362,21 @@ describe("runAgent", () => {
     expect(deps.turn.mock.calls[1]?.[0].menu).toMatchObject({ followUpsLeft: 1, alreadyChecked: [{ camera: "B" }] });
   });
 
+  it("leaves excluded-camera evidence out of every verdict() call", async () => {
+    const fromD: Evidence = { ...initialEvidence, camera: "D", clipId: "init-D" }; // manifest excludes D
+    const { deps, run } = setup({
+      start: startResult("Insufficient", [fromD, initialEvidence]),
+      script: [inspect("B", 10, 12), inspect("C", 10, 12)],
+    });
+    const out = await run();
+    expect(deps.verdict).toHaveBeenCalledTimes(2);
+    for (const [evidence] of deps.verdict.mock.calls) {
+      expect(evidence.map((e) => e.camera)).not.toContain("D");
+    }
+    expect(deps.verdict.mock.calls[1]?.[0].map((e) => e.clipId)).toEqual(["init-A", "clip-B-10", "clip-C-10"]);
+    expect(out.result.evidence.map((e) => e.camera)).toEqual(["D", "A", "B", "C"]); // stored evidence is kept
+  });
+
   it("passes only the menu and its own steps to the agent", async () => {
     const { run, turnInputs } = setup({ script: [stop()] });
     await run();

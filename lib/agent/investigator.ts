@@ -1,8 +1,11 @@
-// OWNER: Dev 3. Fills gaps: runs when a label is Insufficient or two usable cameras disagree.
+// OWNER: Dev 3. Fills gaps: runs when a label is Insufficient (including when two usable cameras disagree).
+// Refuses (does not throw) on any claim eligibleAgent() doesn't assign to the investigator.
 import type { Claim } from "@/lib/types";
-import type { AgentRun } from "@/lib/agent/loop";
-import { notImplemented } from "@/lib/not-implemented";
+import { startAgent, type AgentOutcome, type StartAgentDeps } from "@/lib/agent/start";
 
-export async function investigate(_claim: Claim, _sceneId: string): Promise<AgentRun> {
-  return notImplemented("Dev 3", "investigate");
+export type { AgentOutcome, StartAgentDeps };
+
+/** Runs the Investigator on one claim (stand-in mode by default). */
+export async function investigate(claim: Claim, sceneId: string, deps: StartAgentDeps = {}): Promise<AgentOutcome> {
+  return startAgent("investigator", claim, sceneId, deps);
 }

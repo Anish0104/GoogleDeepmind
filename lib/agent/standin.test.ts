@@ -159,7 +159,17 @@ describe("standinTurnFn", () => {
       turn: standinTurnFn(model),
       start: {
         result: { claimId: menu.claim.id, verdict: "Insufficient", evidence: [], audit: null, history: [] },
-        manifest: {} as never,
+        manifest: {
+          sceneId: "sample-scene",
+          split: "dev",
+          room: "studio",
+          cameras: ["A", "B", "C"],
+          excludedCameras: [],
+          files: {},
+          durationS: 30,
+          createdAt: "2026-11-21T15:00:00.000Z",
+          plannedOcclusion: false,
+        },
       },
       buildMenu: async () => menu,
       checkWindow: async (a) => evidence(a),
