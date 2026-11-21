@@ -51,21 +51,15 @@ export const SDG_NEARMISS_QUESTIONS: Question[] = [
   q("forklift", "state", "touching worker",
     "Does any part of the forklift touch the worker at any moment in this slice, with no gap between them? " +
       "Yes if they are in contact at any point; no if there is a visible gap the whole time."),
-  q("forklift", "state", "clear of worker",
-    "Is there a visible gap between the forklift and the worker for the whole of this slice, so that no part of the " +
-      "forklift touches the person at any moment? Yes only if they never touch; no if they touch at any point."),
   q("forklift", "state", "moving",
     "Does the forklift move during this clip? Yes if its position changes; no if it stays completely still."),
-  q("forklift", "state", "stopped",
-    "Does the forklift stay completely still for the whole clip? Yes only if its position does not change at all; " +
-      "no if it moves at any point."),
   q("worker", "state", "dodging",
     "Does the worker suddenly step, jump or run out of the way during this clip? " +
       "Yes only for a sudden fast movement; no if they stand still or walk calmly."),
 ];
 
 /** Motion questions for the near-miss set, asked over a ~2 s clip. */
-export const SDG_NEARMISS_MOTION_QUESTION_IDS = ["forklift:state:moving", "forklift:state:stopped", "worker:state:dodging"];
+export const SDG_NEARMISS_MOTION_QUESTION_IDS = ["forklift:state:moving", "worker:state:dodging"];
 
 export const QUESTION_SETS: Record<string, Question[]> = {
   warehouse: WAREHOUSE_QUESTIONS,
@@ -104,11 +98,12 @@ export const QUESTION_SET_MOTION_IDS: Record<string, string[]> = {
  * slice or both on the 2 s clip), and each is the other's exact negation. Dev 2's evidence may treat
  * one as the alternative of the other, so a state claim can be contradicted.
  */
+//
+// sdg-nearmiss has none for now: its opposites (clear_of_worker, stopped) scored high during real
+// contact and real motion, so a false "it never touched me" / "it stopped" could be Supported. They
+// were removed until a wording is validated against the answer keys.
 export const QUESTION_SET_EXCLUSIVE: Record<string, [string, string][]> = {
-  "sdg-nearmiss": [
-    ["forklift:state:moving", "forklift:state:stopped"],
-    ["forklift:state:touching_worker", "forklift:state:clear_of_worker"],
-  ],
+  "sdg-nearmiss": [],
 };
 
 export interface QuestionSet {

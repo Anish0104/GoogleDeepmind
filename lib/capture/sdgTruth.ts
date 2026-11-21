@@ -249,9 +249,7 @@ export function summarizeRun(track: TrackPoint[], fps: number = SDG.FPS): RunSum
 export const SDG_STATE_QUESTION_IDS = [
   "forklift:state:near_worker",
   "forklift:state:touching_worker",
-  "forklift:state:clear_of_worker",
   "forklift:state:moving",
-  "forklift:state:stopped",
   "worker:state:dodging",
 ] as const;
 export type SdgStateQuestionId = (typeof SDG_STATE_QUESTION_IDS)[number];
@@ -270,7 +268,6 @@ export interface SliceTruth {
 }
 
 const band = (yes: boolean, no: boolean): Answer => (yes ? "yes" : no ? "no" : "unclear");
-const not = (a: Answer): Answer => (a === "yes" ? "no" : a === "no" ? "yes" : "unclear");
 
 export function sliceTruth(track: TrackPoint[], fps: number = SDG.FPS): SliceTruth[] {
   const dur = track.length / fps;
@@ -304,10 +301,7 @@ export function sliceTruth(track: TrackPoint[], fps: number = SDG.FPS): SliceTru
         // "Is X happening in this clip?": yes if it happens at any point, so both use the slice's closest gap.
         "forklift:state:near_worker": band(gapMin <= SDG.NEAR_M, gapMin >= SDG.FAR_M),
         "forklift:state:touching_worker": touching,
-        // Opposites (QUESTION_SET_EXCLUSIVE): same window, exact inverse, so both are never "yes".
-        "forklift:state:clear_of_worker": not(touching),
         "forklift:state:moving": moving,
-        "forklift:state:stopped": not(moving),
         "worker:state:dodging": band(wMax >= SDG.DODGE_MPS, wMax <= SDG.CALM_MPS),
       },
     };

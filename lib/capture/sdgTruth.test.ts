@@ -174,7 +174,6 @@ describe("contact needs a clear overlap; shallow ones are unclear", () => {
     expect(s.contact).toBeNull();
     const at5 = sliceTruth(trackRun(brush(0.1))).find((x) => x.t === 5)!;
     expect(at5.answers["forklift:state:touching_worker"]).toBe("unclear");
-    expect(at5.answers["forklift:state:clear_of_worker"]).toBe("unclear");
   });
   it("a 30 cm overlap is still unclear (boxes are looser than the bodies)", () => {
     expect(summarizeRun(trackRun(brush(0.3))).outcome).toBe("unclear");
@@ -222,19 +221,9 @@ describe("sliceTruth", () => {
     expect(truth[4]!.window).toEqual([1.5, 3.5]);
     expect(truth[0]!.window).toEqual([0, 1.5]);
   });
-  it("answers each opposite question as the exact inverse of its pair, so both are never yes", () => {
-    const inv = { yes: "no", no: "yes", unclear: "unclear" } as const;
-    for (const s of truth) {
-      expect(s.answers["forklift:state:stopped"]).toBe(inv[s.answers["forklift:state:moving"]]);
-      expect(s.answers["forklift:state:clear_of_worker"]).toBe(inv[s.answers["forklift:state:touching_worker"]]);
-    }
-    expect(truth.find((s) => s.t === 5)!.answers["forklift:state:clear_of_worker"]).toBe("no");
-    expect(truth[0]!.answers["forklift:state:clear_of_worker"]).toBe("yes");
-  });
   it("says the forklift is not moving when it stands still", () => {
     const parked = Array.from({ length: 60 }, () => frame(box(0, 0, 0.5, 0.5), box(4, 0, 2, 1)));
     expect(sliceTruth(trackRun(parked))[1]!.answers["forklift:state:moving"]).toBe("no");
-    expect(sliceTruth(trackRun(parked))[1]!.answers["forklift:state:stopped"]).toBe("yes");
   });
 });
 

@@ -47,7 +47,7 @@ describe("SDG_NEARMISS_QUESTIONS (NVIDIA SDG-Warehouse forklift-human near miss)
       expect(q.id.startsWith(`${q.entityId}:${q.predicate}:`)).toBe(true);
       expect(q.text).toMatch(/\bno\b/i);
     }
-    expect(SDG_NEARMISS_MOTION_QUESTION_IDS).toEqual(["forklift:state:moving", "forklift:state:stopped", "worker:state:dodging"]);
+    expect(SDG_NEARMISS_MOTION_QUESTION_IDS).toEqual(["forklift:state:moving", "worker:state:dodging"]);
     expect(QUESTION_SETS["sdg-nearmiss"]).toBe(SDG_NEARMISS_QUESTIONS);
   });
 
@@ -85,12 +85,12 @@ describe("named question sets carry their own registry (entities, people) and mo
 });
 
 describe("QUESTION_SET_EXCLUSIVE", () => {
-  it("pairs sdg-nearmiss opposites that can never both be true", async () => {
-    const { QUESTION_SET_EXCLUSIVE } = await import("@/lib/perception/questionSets");
-    expect(QUESTION_SET_EXCLUSIVE["sdg-nearmiss"]).toEqual([
-      ["forklift:state:moving", "forklift:state:stopped"],
-      ["forklift:state:touching_worker", "forklift:state:clear_of_worker"],
-    ]);
+  it("has no sdg-nearmiss pairs until an opposite wording is validated (unsafe ones were removed)", async () => {
+    const { QUESTION_SET_EXCLUSIVE, questionSet } = await import("@/lib/perception/questionSets");
+    expect(QUESTION_SET_EXCLUSIVE["sdg-nearmiss"]).toEqual([]);
+    const ids = questionSet("sdg-nearmiss").questions.map((q) => q.id);
+    expect(ids).not.toContain("forklift:state:clear_of_worker");
+    expect(ids).not.toContain("forklift:state:stopped");
   });
 
   it("only pairs questions of one set, about the same entity, asked over the same window", async () => {
