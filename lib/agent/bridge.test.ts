@@ -1,9 +1,10 @@
 // OWNER: Dev 3. Tests for the bridge's validation rules and tool-call schemas.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { LIMITS } from "@/lib/config";
-import type { AgentMenu, Claim, InspectWindowArgs } from "@/lib/types";
+import type { AgentMenu, Claim, Evidence, InspectWindowArgs } from "@/lib/types";
 import {
   findOverlap,
+  inspect,
   InspectWindowArgsSchema,
   parseToolCall,
   StopArgsSchema,
@@ -309,5 +310,35 @@ describe("parseToolCall", () => {
     expect(parseToolCall("stop", "done")).toMatchObject({ ok: false, droppedFields: [] });
     expect(parseToolCall("stop", null)).toMatchObject({ ok: false, droppedFields: [] });
     expect(parseToolCall("stop", [])).toMatchObject({ ok: false, droppedFields: [] });
+  });
+});
+
+describe("inspect", () => {
+  it("delegates to Dev 1's checkWindow() with mapped window and camera arguments", async () => {
+    const fakeEvidence: Evidence = {
+      camera: "B",
+      window: [10, 12],
+      visible: 0.92,
+      supports: 0.88,
+      contradicts: 0.03,
+      clipId: "clip:s1:B:10-12:entity",
+      source: "investigator",
+    };
+    const mod = await import("@/lib/perception/checkWindow");
+    const spy = vi.spyOn(mod, "checkWindow").mockResolvedValueOnce(fakeEvidence);
+    try {
+      const out = await inspect(args({ camera_id: "B", start_s: 10, end_s: 12, crop: "entity" }), claim, "s1", "investigator");
+      expect(out).toEqual(fakeEvidence);
+      expect(spy).toHaveBeenCalledWith({
+        sceneId: "s1",
+        camera: "B",
+        window: [10, 12],
+        crop: "entity",
+        claim,
+        source: "investigator",
+      });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
