@@ -49,6 +49,28 @@ const MetaSchema = z.object({
     .min(1),
 });
 
+const AnswerSchema = z.enum(["yes", "no", "unclear"]);
+
+/** The answer key file as importSdgWarehouse() writes it (only the fields readers rely on are checked). */
+export const SdgTruthFileSchema = z.looseObject({
+  sceneId: z.string(),
+  runId: z.string(),
+  views: z.object({ A: z.string(), B: z.string(), C: z.string(), D: z.string() }),
+  summary: z.looseObject({ outcome: z.enum(["contact", "near_miss"]) }),
+  slices: z.array(
+    z.looseObject({
+      t: z.number(),
+      answers: z.record(z.string(), AnswerSchema),
+      cameras: z.record(z.string(), z.object({ alias: z.string() }).catchall(z.union([AnswerSchema, z.number(), z.string()]))),
+    }),
+  ),
+});
+export type SdgTruthFile = z.infer<typeof SdgTruthFileSchema>;
+
+export function readSdgTruth(file: string): SdgTruthFile {
+  return SdgTruthFileSchema.parse(JSON.parse(readFileSync(file, "utf8")));
+}
+
 /** Middle frame of each 0.5 s slice. */
 export function sliceMidFrames(frames: number, fps: number = SDG.FPS): number[] {
   const per = SDG.SLICE_S * fps;
