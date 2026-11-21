@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BudgetExceededError } from "@/lib/cost";
 import type { Slice } from "@/lib/capture/slice";
 import type { PerceiveOptions, PerceiveResult } from "@/lib/perception/perceive";
-import { QUESTION_SETS } from "@/lib/perception/questionSets";
+import { QUESTION_SET_MOTION_IDS, QUESTION_SETS } from "@/lib/perception/questionSets";
 import { isSceneLocked, lockScene } from "@/lib/store/scene";
 import type { CameraId, GridRow, RunStatus, SceneManifest } from "@/lib/types";
 import { runPipeline, startPipeline, type PipelineDeps } from "@/lib/pipeline/run";
@@ -184,6 +184,18 @@ describe("runPipeline: probe -> perceive -> stills, ending at perceived", () => 
     expect(writes.find((w) => w.file === "manifest.json")?.data).toMatchObject({ presynced: true, questionSet: "warehouse", roi: true });
   });
 
+  it.each([
+    ["sdg-nearmiss", ["forklift:state:moving", "worker:state:dodging"]],
+    ["warehouse", ["forklift:state:stationary"]],
+  ])("questionSet %s also passes its motion question ids as contextQuestionIds", async (set, ids) => {
+    const { deps } = setup({ manifest: { presynced: true, questionSet: set } });
+    expect((await runPipeline(SCENE, deps)).status).toBe("perceived");
+    const opts = deps.perceiveScene.mock.calls[0]![1];
+    expect(opts.questions).toBe(QUESTION_SETS[set]);
+    expect(opts.contextQuestionIds).toEqual(ids);
+    expect(opts.contextQuestionIds).toBe(QUESTION_SET_MOTION_IDS[set]);
+  });
+
   it("a scene without those fields passes none of them (perceiveScene keeps its own defaults)", async () => {
     const { deps } = setup();
     await runPipeline(SCENE, deps);
@@ -191,6 +203,7 @@ describe("runPipeline: probe -> perceive -> stills, ending at perceived", () => 
     expect(opts).not.toHaveProperty("presynced");
     expect(opts).not.toHaveProperty("questions");
     expect(opts).not.toHaveProperty("roi");
+    expect(opts).not.toHaveProperty("contextQuestionIds");
   });
 
   it("an unknown question set in a hand-edited manifest fails stage perceive before calling it", async () => {

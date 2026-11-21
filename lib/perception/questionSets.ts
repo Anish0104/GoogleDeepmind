@@ -64,3 +64,9 @@ export const QUESTION_SETS: Record<string, Question[]> = {
   warehouse: WAREHOUSE_QUESTIONS,
   "sdg-nearmiss": SDG_NEARMISS_QUESTIONS,
 };
+
+/** Each set's motion question ids (asked over a ~2 s clip): perceiveScene's contextQuestionIds. */
+export const QUESTION_SET_MOTION_IDS: Record<keyof typeof QUESTION_SETS, string[]> = {
+  warehouse: WAREHOUSE_MOTION_QUESTION_IDS,
+  "sdg-nearmiss": SDG_NEARMISS_MOTION_QUESTION_IDS,
+};
