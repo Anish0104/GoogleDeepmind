@@ -1,16 +1,88 @@
 // OWNER: Dev 3. Builds the ONLY thing an agent sees: the allowlisted menu plus stills and view descriptions.
-// Reads results.json, views.json and stills/. Never reads labels/, scripts/, ground truth or excluded cameras.
-import type { AgentMenu, AgentName, Claim, ClaimResult, Evidence, InspectWindowArgs, SceneManifest } from "@/lib/types";
+// Reads views.json and stills.json (camera -> still id). Never reads labels/, scripts/, ground truth, other
+// claims' results or anything from excluded cameras.
+import { z } from "zod";
+import { LIMITS } from "@/lib/config";
+import { NotFoundError, readJson } from "@/lib/store/scene";
+import type {
+  AgentMenu,
+  AgentName,
+  CameraId,
+  Claim,
+  ClaimResult,
+  Evidence,
+  InspectWindowArgs,
+  SceneManifest,
+} from "@/lib/types";
 import { findOverlap, validateWindow } from "@/lib/agent/bridge";
-import { notImplemented } from "@/lib/not-implemented";
 
+const CameraIdSchema = z.enum(["A", "B", "C", "D"]);
+const ViewsSchema = z.array(z.object({ camera: CameraIdSchema, text: z.string() }));
+const StillsSchema = z.partialRecord(CameraIdSchema, z.string());
+
+/** Optional scene file: a missing file is the empty value; a malformed one throws. */
+async function readOptional<T>(sceneId: string, file: string, schema: z.ZodType<T>, empty: T): Promise<T> {
+  try {
+    return await readJson(sceneId, file, schema);
+  } catch (e) {
+    if (e instanceof NotFoundError) return empty;
+    throw e;
+  }
+}
+
+/**
+ * Builds the allowlisted menu for one agent on one claim. Allowlist, not blocklist: every field is built
+ * explicitly from the claim, its own result (label + evidence only) and views.json / stills.json, all filtered
+ * to included cameras. Never reads other claims' results, labels/, scripts/ or ground truth.
+ */
 export async function buildMenu(
-  _agent: AgentName,
-  _claim: Claim,
-  _result: ClaimResult,
-  _manifest: SceneManifest,
+  agent: AgentName,
+  claim: Claim,
+  result: ClaimResult,
+  manifest: SceneManifest,
 ): Promise<AgentMenu> {
-  return notImplemented("Dev 3", "buildMenu");
+  if (claim.sceneId !== manifest.sceneId) {
+    throw new Error(`Claim ${claim.id} belongs to scene ${claim.sceneId}, not ${manifest.sceneId}.`);
+  }
+  if (result.claimId !== claim.id) throw new Error(`Result is for claim ${result.claimId}, not ${claim.id}.`);
+
+  const excluded = new Set<CameraId>(manifest.excludedCameras);
+  const includedCameras = manifest.cameras.filter((c) => !excluded.has(c));
+  const included = new Set<CameraId>(includedCameras);
+
+  const [views, stills] = await Promise.all([
+    readOptional(manifest.sceneId, "views.json", ViewsSchema, []),
+    readOptional(manifest.sceneId, "stills.json", StillsSchema, {}),
+  ]);
+
+  const evidence: Evidence[] = result.evidence.filter((e) => included.has(e.camera)).map((e) => ({ ...e }));
+  const stillIds: AgentMenu["stillIds"] = {};
+  for (const c of includedCameras) {
+    const id = stills[c];
+    if (id !== undefined) stillIds[c] = id;
+  }
+
+  const [w0, w1] = claim.window;
+  const pad = LIMITS.AGENT_RANGE_PAD_S;
+  const lo = Math.max(0, w0 - pad);
+  const hi = manifest.durationS > 0 ? Math.min(manifest.durationS, w1 + pad) : w1 + pad;
+
+  return {
+    agent,
+    claim: { ...claim, window: [w0, w1] },
+    currentVerdict: result.verdict,
+    evidence,
+    views: views.filter((v) => included.has(v.camera)).map(({ camera, text }) => ({ camera, text })),
+    stillIds,
+    includedCameras,
+    allowedRangeS: [lo, hi],
+    // Only clips an agent already checked. Initial evidence comes from the grid's half-second stills, not a
+    // clip check, so an agent may still check a clip in the same window (that is the point of the follow-up).
+    alreadyChecked: evidence
+      .filter((e) => e.source !== "initial")
+      .map((e) => ({ camera: e.camera, window: [e.window[0], e.window[1]] })),
+    followUpsLeft: LIMITS.AGENT_MAX_CHECKS,
+  };
 }
 
 /**

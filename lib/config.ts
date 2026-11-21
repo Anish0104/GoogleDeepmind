@@ -38,6 +38,8 @@ export const LIMITS = {
   BUDGET_HARD_STOP_USD: num(process.env.BUDGET_HARD_STOP_USD, 8),
   MAX_CONCURRENT_CALLS: num(process.env.MAX_CONCURRENT_CALLS, 2),
   CARBON_TIMEOUT_MS: 6_000,
+  /** Seconds the agents' allowed range extends either side of the claim window. */
+  AGENT_RANGE_PAD_S: 3,
 } as const;
 
 export const ZONES = ["A", "B", "C", "D", "E", "F"] as const;

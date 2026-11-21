@@ -245,7 +245,7 @@ describe("runAgent", () => {
   it("the 2-check cap forces a stop", async () => {
     const { deps, run } = setup({
       menu: { followUpsLeft: 5 }, // more than the cap: the loop still allows only AGENT_MAX_CHECKS
-      script: [inspect("A", 5, 7), inspect("B", 5, 7), inspect("C", 5, 7), inspect("A", 15, 17)],
+      script: [inspect("A", 11, 13), inspect("B", 11, 13), inspect("C", 11, 13), inspect("A", 12, 14)],
     });
     const out = await run();
 
@@ -362,6 +362,21 @@ describe("runAgent", () => {
     expect(deps.turn.mock.calls[1]?.[0].menu).toMatchObject({ followUpsLeft: 1, alreadyChecked: [{ camera: "B" }] });
   });
 
+  it("leaves excluded-camera evidence out of every verdict() call", async () => {
+    const fromD: Evidence = { ...initialEvidence, camera: "D", clipId: "init-D" }; // manifest excludes D
+    const { deps, run } = setup({
+      start: startResult("Insufficient", [fromD, initialEvidence]),
+      script: [inspect("B", 10, 12), inspect("C", 10, 12)],
+    });
+    const out = await run();
+    expect(deps.verdict).toHaveBeenCalledTimes(2);
+    for (const [evidence] of deps.verdict.mock.calls) {
+      expect(evidence.map((e) => e.camera)).not.toContain("D");
+    }
+    expect(deps.verdict.mock.calls[1]?.[0].map((e) => e.clipId)).toEqual(["init-A", "clip-B-10", "clip-C-10"]);
+    expect(out.result.evidence.map((e) => e.camera)).toEqual(["D", "A", "B", "C"]); // stored evidence is kept
+  });
+
   it("passes only the menu and its own steps to the agent", async () => {
     const { run, turnInputs } = setup({ script: [stop()] });
     await run();
@@ -453,7 +468,7 @@ describe("runAgent", () => {
       const { run } = setup({
         agent: "skeptic",
         start: { ...startResult("Contradicted", [initialEvidence]), history: [earlier] },
-        script: [inspect("B", 5, 7), inspect("C", 10, 12)],
+        script: [inspect("B", 10, 13), inspect("C", 10, 12)],
         scores: {
           B: { visible: 0.95, supports: 0.95, contradicts: 0.01 }, // tries Supported: blocked
           C: { visible: 0.2, supports: null, contradicts: null }, // Insufficient: allowed
@@ -526,6 +541,54 @@ describe("runAgent", () => {
       expect(out.result.history).toEqual([
         expect.objectContaining({ from: "Contradicted", to: "Insufficient", by: "skeptic" }),
       ]);
+    });
+  });
+
+  describe("audit: replaced only by a usable clip", () => {
+    const blockedC = { C: { visible: 0.2, supports: null, contradicts: null } };
+    const supA: Evidence = { ...initialEvidence, camera: "A", supports: 0.95, contradicts: 0.01, clipId: "init-A" };
+    const supB: Evidence = { ...supA, camera: "B", clipId: "init-B" };
+    const strongAudit: Audit = { supportScore: 0.95, contradictScore: 0.01, clipId: "init-A" };
+
+    it("(a) the skeptic checking a blocked clip leaves a correct Supported label unchanged", async () => {
+      const start: ClaimResult = { ...startResult("Supported", [supA, supB]), audit: strongAudit };
+      const { deps, run } = setup({
+        agent: "skeptic",
+        start,
+        script: [inspect("C", 10, 13), stop()],
+        scores: blockedC,
+        overrides: { verdict: realVerdict },
+      });
+      const out = await run();
+
+      expect(out.result.verdict).toBe("Supported");
+      expect(out.result.audit).toEqual(strongAudit); // the blocked clip's empty audit did not replace it
+      expect(out.result.evidence.map((e) => e.clipId)).toEqual(["init-A", "init-B", "clip-C-10"]); // still added
+      expect(out.result.history).toEqual([]);
+      expect(deps.enforceDowngradeOnly).not.toHaveBeenCalled();
+    });
+
+    it("(b) the investigator settles a claim, then a blocked clip keeps it Supported", async () => {
+      const { run } = setup({
+        start: startResult("Insufficient"),
+        script: [inspect("B", 10, 13), inspect("C", 10, 13)],
+        scores: { B: { visible: 0.95, supports: 0.95, contradicts: 0.01 }, ...blockedC },
+        overrides: { verdict: realVerdict },
+      });
+      const out = await run();
+
+      expect(out.steps.map((s) => s.action)).toEqual(["inspect_window", "inspect_window", "stop"]);
+      expect(out.result.verdict).toBe("Supported");
+      expect(out.result.audit).toEqual({ supportScore: 0.95, contradictScore: 0.01, clipId: "clip-B-10" });
+      expect(out.result.history).toEqual([
+        expect.objectContaining({ from: "Insufficient", to: "Supported", by: "investigator" }),
+      ]);
+    });
+
+    it("a usable clip does replace the audit", async () => {
+      const { run } = setup({ script: [inspect("B", 10, 13), stop()] });
+      const out = await run();
+      expect(out.result.audit?.clipId).toBe("clip-B-10");
     });
   });
 
