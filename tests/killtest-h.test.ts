@@ -1,11 +1,17 @@
 // OWNER: Dev 3. Kill test H, offline mode only (no Gemini, no video): the same function `pnpm killtest h` runs.
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { TurnInput, TurnOutput } from "@/lib/agent/loop";
-import { buildScene, CASES, CLAIMS, formatReport, runKillTestH } from "@/scripts/killtests/h";
+import { buildScene, CASES, CLAIMS, formatReport, runKillTestH, type HReport } from "@/scripts/killtests/h";
 
-describe("kill test H (offline: safety checks only)", () => {
-  it("passes: 0 right labels changed, 0 new Contradicted, at least 3 of 5 wrong labels downgraded", async () => {
-    const r = await runKillTestH("offline");
+// Whole kill-test runs are slow-ish under the parallel suite; give them room instead of the 5 s default.
+describe("kill test H (offline: safety checks only)", { timeout: 60_000 }, () => {
+  let report: HReport;
+  beforeAll(async () => {
+    report = await runKillTestH("offline");
+  }, 60_000);
+
+  it("passes: 0 right labels changed, 0 new Contradicted, at least 3 of 5 wrong labels downgraded", () => {
+    const r = report;
     expect(r.label).toBe("H offline: safety checks only");
     expect(r.rightChanged).toBe(0);
     expect(r.newContradicted).toBe(0);
@@ -29,7 +35,7 @@ describe("kill test H (offline: safety checks only)", () => {
   });
 
   it("runs are reproducible", async () => {
-    expect(await runKillTestH("offline")).toEqual(await runKillTestH("offline"));
+    expect(await runKillTestH("offline")).toEqual(report);
   });
 
   it("picking the right camera matters: checking cameras alphabetically misses w2 (only C sees the truth)", async () => {
@@ -47,8 +53,8 @@ describe("kill test H (offline: safety checks only)", () => {
     expect(r.newContradicted).toBe(0);
   });
 
-  it("formats the report with the counts, PASS/FAIL and one line per claim", async () => {
-    const text = formatReport(await runKillTestH("offline"));
+  it("formats the report with the counts, PASS/FAIL and one line per claim", () => {
+    const text = formatReport(report);
     expect(text).toMatch(/^H offline: safety checks only/);
     expect(text).toMatch(/right labels changed:\s+0 \(must be 0\)/);
     expect(text).toMatch(/new Contradicted:\s+0 \(must be 0\)/);

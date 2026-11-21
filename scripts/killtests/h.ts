@@ -132,6 +132,13 @@ const MANIFEST: SceneManifest = {
 const grid = (truth: Event[], occluded: ReturnType<typeof blocked>): GridRow[] =>
   fakeGrid({ sceneId: SCENE_ID, cameras: CAMERAS, durationS: DURATION_S, truth, questions: QUESTIONS, noise: NOISE, sharedErrorRate: 0, occluded, seed: SEED });
 
+/**
+ * Only this claim's object's rows. evidenceFor() keeps only rows for the claimed question and its
+ * alternatives (all of the claim's object), so the result is identical; it just skips re-indexing the
+ * other nine objects' rows on every call.
+ */
+const rowsFor = (rows: GridRow[], claimId: string) => rows.filter((r) => r.questionId.startsWith(`${claimId}:`));
+
 /** Stand-in for Decision 1 on the cited clip: the strongest usable view's own scores (null if none usable). */
 function citedAudit(evidence: Evidence[]): Audit | null {
   const strength = (e: Evidence) => Math.max(e.supports ?? 0, e.contradicts ?? 0);
@@ -145,7 +152,7 @@ export function buildScene() {
   const clipRows = grid(TRUTH, blocked((c) => c.clipsBlocked));
   const initial = new Map<string, ClaimResult>();
   for (const claim of CLAIMS) {
-    const evidence = evidenceFor(claim, stillsRows, QUESTIONS);
+    const evidence = evidenceFor(claim, rowsFor(stillsRows, claim.id), QUESTIONS);
     const audit = citedAudit(evidence);
     const result: ClaimResult = { claimId: claim.id, verdict: verdict(evidence, claim, audit), evidence, audit, history: [] };
     const c = CASES.find((x) => x.id === claim.id)!;
@@ -162,7 +169,9 @@ export function buildScene() {
 /** Fake Dev 1 checkWindow(): scores the requested camera/window from the clip grid (the hidden truth). */
 function clipCheck(clipRows: GridRow[]) {
   return async (a: CheckWindowArgs): Promise<Evidence> => {
-    const runs = evidenceFor({ ...a.claim, window: a.window }, clipRows, QUESTIONS).filter((e) => e.camera === a.camera);
+    const runs = evidenceFor({ ...a.claim, window: a.window }, rowsFor(clipRows, a.claim.id), QUESTIONS).filter(
+      (e) => e.camera === a.camera,
+    );
     const pick = runs.find((e) => e.visible >= THRESHOLDS.USABLE) ?? runs[0];
     const clipId = `clip:${SCENE_ID}:${a.camera}:${a.window[0]}-${a.window[1]}:${a.crop}`;
     if (!pick) return { camera: a.camera, window: a.window, visible: 0, supports: null, contradicts: null, clipId, source: a.source };
