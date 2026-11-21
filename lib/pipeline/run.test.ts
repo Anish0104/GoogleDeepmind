@@ -14,10 +14,10 @@ import type {
   Question,
   RunStatus,
   SceneManifest,
-  SyncResult,
   Verdict,
 } from "@/lib/types";
 import { runPipeline, startPipeline, isSceneLocked, type PipelineDeps } from "@/lib/pipeline/run";
+import type { PerceiveOptions, PerceiveResult } from "@/lib/perception/perceive";
 
 const SCENE = "s1";
 const manifest: SceneManifest = {
@@ -101,25 +101,28 @@ function setup(o: Opts = {}) {
       calls.push(`probe:${file.match(/cam-(\w)/)![1]}`);
       return { durationS: file.includes("cam-B") ? 28.5 : 30, hasAudio: true };
     }),
-    syncScene: vi.fn(async (m: SceneManifest): Promise<SyncResult[]> => {
-      calls.push("sync");
-      fail("sync");
-      return m.cameras.filter((c) => !m.excludedCameras.includes(c)).map((camera) => ({ camera, offsetS: 0, driftPerMin: 0, method: "both" }));
+    // Dev 1's perceiveScene(): reports each step through onStep and the grid through onRows. Pretend a row
+    // from excluded camera D leaked into the grid: the runner must drop it.
+    perceiveScene: vi.fn(async (_sceneId: string, opts: PerceiveOptions): Promise<PerceiveResult> => {
+      calls.push("perceive");
+      for (const step of ["sync", "slice", "scout"] as const) {
+        if (o.failAt?.stage === `perceive:${step}`) throw o.failAt.error;
+        opts.onStep?.(step, `${step} done`);
+      }
+      if (o.failAt?.stage === "perceive:lattice") throw o.failAt.error;
+      opts.onRows?.([row("A"), row("B")]);
+      opts.onRows?.([row("D")]);
+      opts.onStep?.("lattice", "3 rows");
+      return { sync: [], slices: 16, slicesUsed: 16, entities: 1, questions: 1, rows: 3 };
     }),
-    sliceScene: vi.fn(async (_m: SceneManifest, _sync: SyncResult[]): Promise<Slice[]> => {
-      calls.push("slice");
-      fail("slice");
-      return (["A", "B", "C"] as CameraId[]).flatMap((c) => [0, 0.5, 1, 1.5, 2].map((t) => slice(c, t)));
+    loadQuestions: vi.fn(async () => {
+      calls.push("questions");
+      return QUESTIONS;
     }),
-    scout: vi.fn(async (stills: string[]) => {
-      calls.push(`scout:${stills.length}`);
-      return { entities: [], questions: QUESTIONS };
-    }),
-    // Pretend a row from excluded camera D leaked into the grid: the runner must drop it.
-    latticeScene: vi.fn(async (): Promise<GridRow[]> => {
-      calls.push("lattice");
-      fail("lattice");
-      return [row("A"), row("B"), row("D")];
+    // slices.json, as sliceScene() writes it; a D slice leaked in here too.
+    loadSlices: vi.fn(async (): Promise<Slice[]> => {
+      calls.push("slices");
+      return [...(["A", "B", "C"] as CameraId[]).flatMap((c) => [0, 0.5, 1, 1.5, 2].map((t) => slice(c, t))), slice("D", 1)];
     }),
     // Pretend evidenceFor() returned D evidence anyway: the runner must drop it too.
     evidenceFor: vi.fn((c: Claim, rows: GridRow[]) => {
@@ -178,12 +181,10 @@ describe("runPipeline", () => {
       "probe:A",
       "probe:B",
       "probe:C",
-      "sync",
-      "slice",
       "budget",
-      "scout:6",
-      "budget",
-      "lattice",
+      "perceive",
+      "questions",
+      "slices",
       ...["c1", "c2", "c3"].flatMap((id) => [`evidence:${id}`, `cite:${id}`, "budget", `audit:${id}`, `verdict:${id}`, `save:${id}`]),
       "stills",
       "budget",
@@ -193,10 +194,7 @@ describe("runPipeline", () => {
     expect(runs().map((r) => `${r.status}:${r.stage}`)).toEqual([
       "running:claims",
       "running:probe",
-      "running:sync",
-      "running:slice",
-      "running:scout",
-      "running:lattice",
+      "running:perceive",
       "running:evidence",
       "running:stills",
       "running:agents",
@@ -205,7 +203,7 @@ describe("runPipeline", () => {
     expect(runs().at(-1)).toEqual({ status: "done", stage: "done", startedAt: "2026-11-21T16:00:00.000Z", finishedAt: "2026-11-21T16:00:00.000Z" });
   });
 
-  it("excluded cameras never reach evidence, citation, verdict, saved results, scout or stills", async () => {
+  it("excluded cameras never reach evidence, citation, verdict, saved results or stills", async () => {
     const { deps, writes } = setup();
     await runPipeline(SCENE, deps);
 
@@ -214,7 +212,6 @@ describe("runPipeline", () => {
     for (const [evidence] of deps.verdict.mock.calls) expect(evidence.map((e) => e.camera)).not.toContain("D");
     for (const [, r] of deps.saveResult.mock.calls) expect(r.evidence.map((e) => e.camera)).not.toContain("D");
     expect(deps.recordingPath.mock.calls.map((c) => c[1])).toEqual(["A", "B", "C"]); // D is never probed
-    expect(deps.scout.mock.calls[0]![0].join()).not.toMatch(/cam-D/);
     expect(writes.find((w) => w.file === "stills.json")?.data).not.toHaveProperty("D");
   });
 
@@ -225,11 +222,12 @@ describe("runPipeline", () => {
     const m = writes.find((w) => w.file === "manifest.json")?.data as SceneManifest;
     expect(m.durationS).toBe(28.5);
     expect(m.files).toEqual({ A: "cam-A.webm", B: "cam-B.webm", C: "cam-C.webm" });
-    // Dev 1's stages read files through recordingPath(), which resolves against the working directory, so
-    // they get the files resolved through scenePath (absolute), never the stored relative paths.
-    const abs = { A: `/abs/data/scenes/${SCENE}/cam-A.webm`, B: `/abs/data/scenes/${SCENE}/cam-B.webm`, C: `/abs/data/scenes/${SCENE}/cam-C.webm` };
-    expect(deps.syncScene.mock.calls[0]![0]).toMatchObject({ durationS: 28.5, files: abs });
-    expect(deps.sliceScene.mock.calls[0]![0]).toMatchObject({ files: abs });
+    // perceiveScene() loads manifest.json itself, so it must already be written when perceive runs.
+    const manifestWrite = writes.findIndex((w) => w.file === "manifest.json");
+    const perceiveStage = writes.findIndex((w) => w.file === "run.json" && (w.data as RunStatus).stage === "perceive");
+    expect(manifestWrite).toBeGreaterThanOrEqual(0);
+    expect(manifestWrite).toBeLessThan(perceiveStage);
+    expect(deps.perceiveScene.mock.calls[0]![0]).toBe(SCENE);
   });
 
   it("stored relative files are resolved through scenePath when reading", async () => {
@@ -255,7 +253,7 @@ describe("runPipeline", () => {
     const final = await runPipeline(SCENE, deps);
     expect(final).toMatchObject({ status: "failed", stage: "probe", error: expect.stringMatching(/camera B/) });
     expect(runs().at(-1)).toEqual(final);
-    expect(deps.syncScene).not.toHaveBeenCalled();
+    expect(deps.perceiveScene).not.toHaveBeenCalled();
   });
 
   it("missing or empty claims fail stage claims before anything else runs", async () => {
@@ -297,19 +295,28 @@ describe("runPipeline", () => {
   });
 
   it.each([
-    ["sync", "sync"],
-    ["slice", "slice"],
-    ["lattice", "lattice"],
-  ])("a failure in %s is reported as stage %s", async (stage, name) => {
-    const { deps } = setup({ failAt: { stage, error: new Error(`${stage} broke`) } });
-    expect(await runPipeline(SCENE, deps)).toMatchObject({ status: "failed", stage: name, error: `${stage} broke` });
+    ["sync", "perceive (sync): sync broke"],
+    ["slice", "perceive (slice, after sync): slice broke"],
+    ["lattice", "perceive (lattice, after scout): lattice broke"],
+  ])("a failure inside perceiveScene at %s is stage perceive, naming Dev 1's step", async (step, error) => {
+    const { deps } = setup({ failAt: { stage: `perceive:${step}`, error: new Error(`${step} broke`) } });
+    expect(await runPipeline(SCENE, deps)).toMatchObject({ status: "failed", stage: "perceive", error });
+  });
+
+  it("passes perceiveScene's supported options through (maxSlicesPerCamera), plus its own onStep/onRows", async () => {
+    const { deps } = setup();
+    await runPipeline(SCENE, { ...deps, perceiveOptions: { maxSlicesPerCamera: 3 } });
+    const opts = deps.perceiveScene.mock.calls[0]![1];
+    expect(opts.maxSlicesPerCamera).toBe(3);
+    expect(typeof opts.onStep).toBe("function");
+    expect(typeof opts.onRows).toBe("function");
   });
 
   it("a budget stop is a clean failed status with error budget", async () => {
-    const { deps, calls } = setup({ budgetFailsBefore: "lattice" });
+    const { deps, calls } = setup({ budgetFailsBefore: "perceive" });
     const final = await runPipeline(SCENE, deps);
-    expect(final).toMatchObject({ status: "failed", stage: "lattice", error: "budget" });
-    expect(calls).not.toContain("lattice");
+    expect(final).toMatchObject({ status: "failed", stage: "perceive", error: "budget" });
+    expect(calls).not.toContain("perceive");
   });
 
   it("an eligible claim triggers the right agent; an ineligible one doesn't", async () => {
@@ -342,9 +349,9 @@ describe("startPipeline (one run per scene)", () => {
   it("a second run while one is running is refused; the lock is released when it ends", async () => {
     const { deps } = setup();
     let release!: () => void;
-    deps.syncScene.mockImplementationOnce(async () => {
+    deps.perceiveScene.mockImplementationOnce(async () => {
       await new Promise<void>((r) => (release = r));
-      return [];
+      return { sync: [], slices: 0, slicesUsed: 0, entities: 0, questions: 0, rows: 0 };
     });
 
     const first = startPipeline(SCENE, deps);
@@ -353,7 +360,7 @@ describe("startPipeline (one run per scene)", () => {
     const second = startPipeline(SCENE, deps);
     expect(second).toEqual({ started: false, reason: `Scene ${SCENE} already has a run in progress.` });
 
-    await vi.waitFor(() => expect(deps.syncScene).toHaveBeenCalled());
+    await vi.waitFor(() => expect(deps.perceiveScene).toHaveBeenCalled());
     release();
     if (first.started) await first.done;
     expect(isSceneLocked(SCENE)).toBe(false);

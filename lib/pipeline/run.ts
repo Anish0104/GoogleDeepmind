@@ -1,26 +1,28 @@
 // OWNER: Dev 3. The scene pipeline. Every stage is injected (same pattern as runAgent), so tests use fakes;
 // the defaults call each dev's real function exactly as it is.
 //
-// Order: claims -> probe -> sync -> slice -> scout -> lattice -> per claim (evidence -> pickCitation -> audit
-// -> verdict -> saveResult) -> stills.json -> agents.
+// Order: claims -> probe -> perceive (Dev 1's perceiveScene(): sync -> slice -> scout -> lattice) -> per claim
+// (evidence -> pickCitation -> audit -> verdict -> saveResult) -> stills.json -> agents.
 // - claims.json is written by Dev 2's account route; missing or empty fails stage "claims" before any work.
 // - probe records each included camera's recording (as a path relative to the scene folder) and the shortest
 //   duration into manifest.json. Stored files are resolved through scenePath before any stage reads them.
 // - Excluded cameras are never probed, and their grid rows and evidence are dropped before any label work.
-// - assertBudget() runs before every Gemini-calling stage (scout, lattice, each audit, agents); a budget
-//   stop is a clean failed status with error "budget".
+// - assertBudget() runs before every Gemini-calling stage (perceive, each audit, agents); a budget stop is a
+//   clean failed status with error "budget". perceiveScene() runs scout and lattice in one call, so the
+//   budget is checked once before it, not between Dev 1's steps.
+// - perceiveScene() returns counts only: this run's grid rows come from its onRows callback (grid.jsonl is
+//   appended to, so rereading it would double rows on a rerun); questions.json and slices.json are read back
+//   from the store (scout and slice overwrite them each run).
 // - Progress goes to data/scenes/<id>/run.json. A failed stage records its name and message; results
 //   already saved stay on disk.
 import path from "node:path";
 import { z } from "zod";
 import { BudgetExceededError, assertBudget } from "@/lib/cost";
 import { recordingPath } from "@/lib/capture/files";
-import { sliceScene, type Slice } from "@/lib/capture/slice";
-import { syncScene } from "@/lib/capture/sync";
+import type { Slice } from "@/lib/capture/slice";
 import { evidenceFor } from "@/lib/inference/evidence";
 import { verdict } from "@/lib/inference/verdict";
-import { latticeScene } from "@/lib/perception/lattice";
-import { scout } from "@/lib/perception/scout";
+import { perceiveScene, type PerceiveOptions, type PerceiveResult } from "@/lib/perception/perceive";
 import { loadManifest, NotFoundError, readJson, saveResult, scenePath, writeJson } from "@/lib/store/scene";
 import { audit } from "@/lib/truth/auditor";
 import { AuditUnavailableError } from "@/lib/truth/errors";
@@ -36,7 +38,6 @@ import type {
   Question,
   RunStatus,
   SceneManifest,
-  SyncResult,
   Verdict,
 } from "@/lib/types";
 import { eligibleAgent, withoutExcluded } from "@/lib/agent/eligibility";
@@ -44,8 +45,6 @@ import { startAgent, type AgentOutcome } from "@/lib/agent/start";
 
 export const RUN_FILE = "run.json";
 export const NO_CLAIMS = "no claims; submit the account first";
-/** scout() reads at most this many stills. */
-const SCOUT_STILLS = 8;
 
 export interface PipelineDeps {
   loadManifest: (sceneId: string) => Promise<SceneManifest>;
@@ -54,10 +53,14 @@ export interface PipelineDeps {
   loadClaims: (sceneId: string) => Promise<Claim[]>;
   recordingPath: (sceneId: string, camera: CameraId, files?: SceneManifest["files"]) => string | null;
   probe: (file: string) => Promise<{ durationS: number }>;
-  syncScene: (manifest: SceneManifest) => Promise<SyncResult[]>;
-  sliceScene: (manifest: SceneManifest, sync: SyncResult[]) => Promise<Slice[]>;
-  scout: (stillPaths: string[], sceneId: string) => Promise<{ questions: Question[] }>;
-  latticeScene: (slices: Slice[], questions: Question[], sceneId: string) => Promise<GridRow[]>;
+  /** Dev 1's perceiveScene(): sync -> slice -> scout -> lattice, reading manifest.json itself. */
+  perceiveScene: (sceneId: string, opts: PerceiveOptions) => Promise<PerceiveResult>;
+  /** questions.json, written by scout during perceive. */
+  loadQuestions: (sceneId: string) => Promise<Question[]>;
+  /** slices.json, written by sliceScene during perceive. */
+  loadSlices: (sceneId: string) => Promise<Slice[]>;
+  /** perceiveScene's own options that we pass through (it supports maxSlicesPerCamera). */
+  perceiveOptions?: Pick<PerceiveOptions, "maxSlicesPerCamera">;
   evidenceFor: (claim: Claim, rows: GridRow[], questions: Question[]) => Evidence[];
   /** Dev 2's choice of the clip to audit; null means no audit (verdict gets null). */
   pickCitation: (claim: Claim, evidence: Evidence[]) => Evidence | null;
@@ -95,6 +98,16 @@ export async function loadClaims(sceneId: string): Promise<Claim[]> {
   }
 }
 
+/** questions.json from the store (scout writes it). */
+export async function loadQuestions(sceneId: string): Promise<Question[]> {
+  return readJson<Question[]>(sceneId, "questions.json");
+}
+
+/** slices.json from the store (sliceScene writes it). */
+export async function loadSlices(sceneId: string): Promise<Slice[]> {
+  return readJson<Slice[]>(sceneId, "slices.json");
+}
+
 /** The real stages. pickCitation is not on main yet, so callers must supply it. */
 export const defaultPipelineDeps: Omit<PipelineDeps, "pickCitation"> = {
   loadManifest,
@@ -102,10 +115,9 @@ export const defaultPipelineDeps: Omit<PipelineDeps, "pickCitation"> = {
   loadClaims,
   recordingPath,
   probe,
-  syncScene,
-  sliceScene,
-  scout,
-  latticeScene: (slices, questions, sceneId) => latticeScene(slices, questions, sceneId),
+  perceiveScene,
+  loadQuestions,
+  loadSlices,
   evidenceFor,
   audit,
   verdict,
@@ -137,18 +149,6 @@ export function lockScene(sceneId: string): (() => void) | null {
 // ---------- helpers ----------
 
 class StageError extends Error {}
-
-/** Up to SCOUT_STILLS stills, spread over time and shared evenly between cameras. */
-function scoutStills(slices: Slice[]): string[] {
-  const byCam = new Map<CameraId, Slice[]>();
-  for (const s of [...slices].sort((a, b) => a.t - b.t)) byCam.set(s.camera, [...(byCam.get(s.camera) ?? []), s]);
-  const per = Math.max(1, Math.floor(SCOUT_STILLS / Math.max(1, byCam.size)));
-  const out: string[] = [];
-  for (const list of byCam.values()) {
-    for (let k = 1; k <= per && k <= list.length; k++) out.push(list[Math.floor((k * list.length) / (per + 1))]!.stillPath);
-  }
-  return out.slice(0, SCOUT_STILLS);
-}
 
 /** stills.json: camera -> the middle slice's still, as a path inside the scene folder. */
 function stillIds(slices: Slice[], excluded: Set<CameraId>): Partial<Record<CameraId, string>> {
@@ -207,28 +207,41 @@ export async function runPipeline(sceneId: string, deps: PipelineDeps): Promise<
       durations.push(durationS);
     }
     const updated: SceneManifest = { ...stored, files: { ...stored.files, ...relFiles }, durationS: Math.min(...durations) };
-    await d.writeJson(sceneId, "manifest.json", updated); // atomic (temp file + rename)
-    const manifest: SceneManifest = { ...updated, files: absolute(updated.files) };
+    // Atomic (temp file + rename). perceiveScene() reads this file itself; Dev 1's recordingPath() resolves
+    // the relative paths inside the scene folder.
+    await d.writeJson(sceneId, "manifest.json", updated);
 
-    await enter("sync");
-    const sync = await d.syncScene(manifest);
-
-    await enter("slice");
-    const slices = (await d.sliceScene(manifest, sync)).filter((s) => !excluded.has(s.camera));
-
-    await enter("scout");
+    // perceive: Dev 1's sync -> slice -> scout -> lattice in one call.
+    await enter("perceive");
     await d.assertBudget();
-    const { questions } = await d.scout(scoutStills(slices), sceneId);
-
-    await enter("lattice");
-    await d.assertBudget();
-    const rows = (await d.latticeScene(slices, questions, sceneId)).filter((r) => !excluded.has(r.camera));
+    const grid: GridRow[] = [];
+    let lastStep: string | undefined;
+    try {
+      await d.perceiveScene(sceneId, {
+        ...d.perceiveOptions,
+        onStep: (step) => {
+          lastStep = step;
+        },
+        onRows: (rows) => {
+          grid.push(...rows);
+        },
+      });
+    } catch (e) {
+      // Name the Dev 1 step that failed: the one after the last reported (perceiveScene reports each when done).
+      const order = ["sync", "slice", "scout", "lattice"];
+      const failing = order[lastStep ? order.indexOf(lastStep) + 1 : 0] ?? "lattice";
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new StageError(`perceive (${failing}${lastStep ? `, after ${lastStep}` : ""}): ${msg}`);
+    }
+    const questions = await d.loadQuestions(sceneId);
+    const slices = (await d.loadSlices(sceneId)).filter((s) => !excluded.has(s.camera));
+    const rows = grid.filter((r) => !excluded.has(r.camera));
 
     await enter("evidence");
     const saved: { claim: Claim; result: ClaimResult }[] = [];
     for (const claim of claims) {
       await enter("evidence", false);
-      const evidence = withoutExcluded(d.evidenceFor(claim, rows, questions), manifest.excludedCameras);
+      const evidence = withoutExcluded(d.evidenceFor(claim, rows, questions), updated.excludedCameras);
       const cited = d.pickCitation(claim, evidence);
       let checked: Audit | null = null;
       if (cited) {
