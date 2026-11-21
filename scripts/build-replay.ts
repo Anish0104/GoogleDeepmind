@@ -17,7 +17,7 @@ import { pathToFileURL } from "node:url";
 import type { CheckWindowArgs } from "@/lib/perception/checkWindow";
 import type { TurnInput, TurnOutput } from "@/lib/agent/loop";
 import type { ModelReply, StandinModel } from "@/lib/agent/standin";
-import type { Audit, CameraId, Claim, ClaimResult, Event, Evidence, Question, Verdict } from "@/lib/types";
+import type { Audit, CameraId, Claim, ClaimResult, Event, Evidence, GridRow, Question, Verdict } from "@/lib/types";
 
 export const SCENE_ID = "demo-scene";
 export const REPLAY_FILES = [
@@ -138,6 +138,10 @@ function citedAudit(evidence: Evidence[], usable: number): Audit | null {
 
 const jsonl = (rows: unknown[]) => rows.map((r) => JSON.stringify(r)).join("\n") + "\n";
 
+/** Decimal places kept for grid probabilities, so the replay is identical on every platform. */
+export const GRID_DECIMALS = 6;
+const round = (x: number) => Math.round(x * 10 ** GRID_DECIMALS) / 10 ** GRID_DECIMALS;
+
 /**
  * Builds the replay into outDir. Sets DATA_DIR to a temp work folder and imports everything that reads
  * lib/config.ts afterwards (config reads DATA_DIR once at import). Restores DATA_DIR when done.
@@ -171,8 +175,11 @@ export async function buildReplay(outDir: string): Promise<Record<string, { init
         occluded,
         seed: SEED,
       });
-    const rows = grid(STILL_OCCLUSION);
-    const clipRows = grid(CLIP_OCCLUSION);
+    // Math.exp/log can differ in the last digits between macOS and Linux. Round every probability once,
+    // here, before anything uses it: the stored grid, evidence, verdicts and agent clip checks all agree.
+    const rounded = (rs: GridRow[]) => rs.map((r) => ({ ...r, pYes: round(r.pYes), pVisible: round(r.pVisible) }));
+    const rows = rounded(grid(STILL_OCCLUSION));
+    const clipRows = rounded(grid(CLIP_OCCLUSION));
 
     // ---- scene, grid, events, views, stills, claims ----
     await store.createScene(

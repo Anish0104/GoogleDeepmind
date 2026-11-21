@@ -9,9 +9,9 @@
           5,
           9
         ],
-        "visible": 0.9156439088972882,
-        "supports": 0.9432544772079368,
-        "contradicts": 0.041224002553092665,
+        "visible": 0.915644,
+        "supports": 0.943254,
+        "contradicts": 0.04122400000000004,
         "clipId": "grid:demo-scene:A:5-9",
         "source": "initial"
       },
@@ -21,9 +21,9 @@
           5,
           9
         ],
-        "visible": 0.9098498374228822,
-        "supports": 0.9428520151397679,
-        "contradicts": 0.03077592455995448,
+        "visible": 0.90985,
+        "supports": 0.942852,
+        "contradicts": 0.030776000000000026,
         "clipId": "grid:demo-scene:B:5-9",
         "source": "initial"
       },
@@ -33,16 +33,16 @@
           5,
           9
         ],
-        "visible": 0.8991435641954338,
-        "supports": 0.9475842710498266,
-        "contradicts": 0.03380539243993319,
+        "visible": 0.899144,
+        "supports": 0.947584,
+        "contradicts": 0.033804999999999974,
         "clipId": "grid:demo-scene:C:5-9",
         "source": "initial"
       }
     ],
     "audit": {
-      "supportScore": 0.9475842710498266,
-      "contradictScore": 0.03380539243993319,
+      "supportScore": 0.947584,
+      "contradictScore": 0.033804999999999974,
       "clipId": "grid:demo-scene:C:5-9"
     },
     "history": []
@@ -57,7 +57,7 @@
           15,
           18
         ],
-        "visible": 0.1026143500757392,
+        "visible": 0.102614,
         "supports": null,
         "contradicts": null,
         "clipId": "grid:demo-scene:A:15-18",
@@ -69,7 +69,7 @@
           15,
           18
         ],
-        "visible": 0.10652403974455027,
+        "visible": 0.106524,
         "supports": null,
         "contradicts": null,
         "clipId": "grid:demo-scene:B:15-18",
@@ -81,7 +81,7 @@
           15,
           18
         ],
-        "visible": 0.1141139666191263,
+        "visible": 0.114114,
         "supports": null,
         "contradicts": null,
         "clipId": "grid:demo-scene:C:15-18",
@@ -93,16 +93,16 @@
           15,
           18
         ],
-        "visible": 0.8975284570943557,
-        "supports": 0.9426380462833275,
-        "contradicts": 0.035533357505411166,
+        "visible": 0.897528,
+        "supports": 0.942638,
+        "contradicts": 0.035533,
         "clipId": "clip:demo-scene:C:15-18:entity",
         "source": "investigator"
       }
     ],
     "audit": {
-      "supportScore": 0.9426380462833275,
-      "contradictScore": 0.035533357505411166,
+      "supportScore": 0.942638,
+      "contradictScore": 0.035533,
       "clipId": "clip:demo-scene:C:15-18:entity"
     },
     "history": [
@@ -125,9 +125,9 @@
           8,
           11
         ],
-        "visible": 0.9058828586120153,
-        "supports": 0.0496488005838891,
-        "contradicts": 0.8940812554946413,
+        "visible": 0.905883,
+        "supports": 0.049649000000000054,
+        "contradicts": 0.894081,
         "clipId": "grid:demo-scene:A:8-11",
         "source": "initial"
       },
@@ -137,9 +137,9 @@
           8,
           11
         ],
-        "visible": 0.9109728289396584,
-        "supports": 0.050964941808965776,
-        "contradicts": 0.9347100136253015,
+        "visible": 0.910973,
+        "supports": 0.050965,
+        "contradicts": 0.93471,
         "clipId": "grid:demo-scene:B:8-11",
         "source": "initial"
       },
@@ -149,9 +149,9 @@
           8,
           11
         ],
-        "visible": 0.9056635051947853,
-        "supports": 0.05104070393572986,
-        "contradicts": 0.9030568132842249,
+        "visible": 0.905664,
+        "supports": 0.051041,
+        "contradicts": 0.903057,
         "clipId": "grid:demo-scene:C:8-11",
         "source": "initial"
       },
@@ -161,16 +161,16 @@
           8,
           11
         ],
-        "visible": 0.9109728289396584,
-        "supports": 0.050964941808965776,
-        "contradicts": 0.9347100136253015,
+        "visible": 0.910973,
+        "supports": 0.050965,
+        "contradicts": 0.93471,
         "clipId": "clip:demo-scene:B:8-11:entity",
         "source": "skeptic"
       }
     ],
     "audit": {
-      "supportScore": 0.050964941808965776,
-      "contradictScore": 0.9347100136253015,
+      "supportScore": 0.050965,
+      "contradictScore": 0.93471,
       "clipId": "clip:demo-scene:B:8-11:entity"
     },
     "history": []
@@ -185,7 +185,7 @@
           23,
           26
         ],
-        "visible": 0.10016203099304653,
+        "visible": 0.100162,
         "supports": null,
         "contradicts": null,
         "clipId": "grid:demo-scene:A:23-26",
@@ -197,7 +197,7 @@
           23,
           26
         ],
-        "visible": 0.10271176277277108,
+        "visible": 0.102712,
         "supports": null,
         "contradicts": null,
         "clipId": "grid:demo-scene:B:23-26",
@@ -209,7 +209,7 @@
           23,
           26
         ],
-        "visible": 0.1061425184341262,
+        "visible": 0.106143,
         "supports": null,
         "contradicts": null,
         "clipId": "grid:demo-scene:C:23-26",
@@ -221,7 +221,7 @@
           23,
           26
         ],
-        "visible": 0.10016203099304653,
+        "visible": 0.100162,
         "supports": null,
         "contradicts": null,
         "clipId": "clip:demo-scene:A:23-26:entity",

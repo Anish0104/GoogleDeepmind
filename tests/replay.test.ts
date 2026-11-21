@@ -1,5 +1,5 @@
 // OWNER: Dev 3. The sample replay in fixtures/replay/demo-scene/: every file parses with the shared types,
-// the four claims tell the intended story, and scripts/build-replay.ts reproduces it byte for byte.
+// the four claims tell the intended story, and scripts/build-replay.ts reproduces it (numbers within 1e-9).
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -99,6 +99,52 @@ const AgentStepS = z.strictObject({
 const ViewS = z.strictObject({ camera: Camera, text: z.string() }) satisfies z.ZodType<ViewDescription>;
 const StillsS = z.partialRecord(Camera, z.string());
 
+// ---------- structural comparison (platform float noise in the last digits is not a difference) ----------
+const NUM_TOL = 1e-9;
+
+const parseFile = (f: string, text: string): unknown =>
+  f.endsWith(".jsonl")
+    ? text
+        .trimEnd()
+        .split("\n")
+        .map((l) => JSON.parse(l) as unknown)
+    : (JSON.parse(text) as unknown);
+
+/** Every path where a and b differ: numbers within NUM_TOL count as equal; all else must match exactly. */
+function diffClose(a: unknown, b: unknown, at = "$"): string[] {
+  if (typeof a === "number" && typeof b === "number") {
+    return Math.abs(a - b) <= NUM_TOL ? [] : [`${at}: ${a} != ${b}`];
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return [`${at}: array vs non-array`];
+    if (a.length !== b.length) return [`${at}: length ${a.length} != ${b.length}`];
+    return a.flatMap((x, i) => diffClose(x, b[i], `${at}[${i}]`));
+  }
+  if (a !== null && b !== null && typeof a === "object" && typeof b === "object") {
+    const ka = Object.keys(a).sort();
+    const kb = Object.keys(b).sort();
+    if (ka.join() !== kb.join()) return [`${at}: keys [${ka.join()}] != [${kb.join()}]`];
+    const ra = a as Record<string, unknown>;
+    const rb = b as Record<string, unknown>;
+    return ka.flatMap((k) => diffClose(ra[k], rb[k], `${at}.${k}`));
+  }
+  return Object.is(a, b) ? [] : [`${at}: ${JSON.stringify(a)} != ${JSON.stringify(b)}`];
+}
+
+describe("diffClose (test helper)", () => {
+  it("ignores float noise in the last digits, as seen between macOS and Linux", () => {
+    expect(diffClose({ pYes: 0.0418943349965123 }, { pYes: 0.041894334996512295 })).toEqual([]);
+  });
+
+  it("reports real differences with their path", () => {
+    expect(diffClose({ a: [1, { b: 0.5 }] }, { a: [1, { b: 0.5001 }] })).toEqual(["$.a[1].b: 0.5 != 0.5001"]);
+    expect(diffClose({ v: "Supported" }, { v: "Insufficient" })).toEqual(['$.v: "Supported" != "Insufficient"']);
+    expect(diffClose({ a: 1 }, { a: 1, b: 2 })).toHaveLength(1);
+    expect(diffClose([1, 2], [1])).toHaveLength(1);
+    expect(diffClose({ s: null }, { s: 0 })).toHaveLength(1);
+  });
+});
+
 const read = (f: string) => readFile(path.join(DIR, f), "utf8");
 const json = async <T>(f: string, s: z.ZodType<T>) => s.parse(JSON.parse(await read(f)));
 const jsonl = async <T>(f: string, s: z.ZodType<T>) =>
@@ -154,14 +200,23 @@ describe("fixtures/replay/demo-scene", () => {
     for (const s of onExcluded) expect(s).toMatchObject({ action: "rejected", rejectionReason: expect.stringMatching(/not available/) });
   });
 
-  it("scripts/build-replay.ts reproduces every file exactly", async () => {
+  it("stores grid probabilities rounded to 6 decimal places", async () => {
+    for (const r of await jsonl("grid.jsonl", GridRowS)) {
+      expect(Math.round(r.pYes * 1e6) / 1e6).toBe(r.pYes);
+      expect(Math.round(r.pVisible * 1e6) / 1e6).toBe(r.pVisible);
+    }
+  });
+
+  it("scripts/build-replay.ts reproduces every file (numbers within 1e-9, everything else exact)", async () => {
     const out = await mkdtemp(path.join(tmpdir(), "rashomon-replay-test-"));
     try {
       vi.resetModules(); // the builder re-imports everything with its own temp DATA_DIR
       const { buildReplay } = await import("@/scripts/build-replay");
       await buildReplay(out);
       for (const f of REPLAY_FILES) {
-        expect(await readFile(path.join(out, f), "utf8"), f).toBe(await read(f));
+        const rebuilt = parseFile(f, await readFile(path.join(out, f), "utf8"));
+        const stored = parseFile(f, await read(f));
+        expect(diffClose(rebuilt, stored, f), f).toEqual([]);
       }
     } finally {
       await rm(out, { recursive: true, force: true });
