@@ -200,7 +200,10 @@ export async function importSdgWarehouse(input: SdgImportOptions): Promise<SdgIm
     : chooseViews(vis, keySlices);
 
   if (!existsSync(scenePath(o.sceneId, "manifest.json"))) {
-    await createScene({ split: "dev", room: "sdg-warehouse", cameras: [...CAMS], excludedCameras: [] }, { id: o.sceneId });
+    await createScene(
+      { split: "dev", room: "sdg-warehouse", cameras: [...CAMS], excludedCameras: [], presynced: true, questionSet: "sdg-nearmiss" },
+      { id: o.sceneId },
+    );
   }
   const files = {} as Record<CameraId, string>;
   for (const c of CAMS) {

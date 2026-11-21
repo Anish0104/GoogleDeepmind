@@ -118,7 +118,8 @@ export async function importAssembly101(input: ImportOptions): Promise<ImportRes
   }
 
   if (!existsSync(scenePath(o.sceneId, "manifest.json"))) {
-    await createScene({ split: "dev", room: "assembly101", cameras: [...cams], excludedCameras: [] }, { id: o.sceneId });
+    // Presynced fixed views; no question set fits assembly yet, so perception still uses scout.
+    await createScene({ split: "dev", room: "assembly101", cameras: [...cams], excludedCameras: [], presynced: true }, { id: o.sceneId });
   }
 
   const files = {} as Record<CameraId, string>;

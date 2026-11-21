@@ -88,6 +88,8 @@ describe.skipIf(!HAS_FFMPEG || !HAS_ZIP || !HAS_UNZIP)("importSdgWarehouse", { t
     expect(manifest.room).toBe("sdg-warehouse");
     expect(manifest.cameras).toEqual(["A", "B", "C", "D"]);
     expect(manifest.durationS).toBe(2); // the run's length, not createScene()'s 0
+    expect(manifest.presynced).toBe(true);
+    expect(manifest.questionSet).toBe("sdg-nearmiss");
 
     expect(res.truthPath).toBe(path.resolve(dataDir, "labels", "sdg_test.truth.json"));
     expect(existsSync(path.join(dataDir, "scenes", "sdg_test", "truth.json"))).toBe(false);

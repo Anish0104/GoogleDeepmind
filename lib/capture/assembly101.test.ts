@@ -81,6 +81,7 @@ describe.skipIf(!HAS_FFMPEG)("importAssembly101", { timeout: 60_000 }, () => {
     const scene = path.join(dataDir, "scenes", "a101_test");
     expect(JSON.parse(readFileSync(path.join(scene, "manifest.json"), "utf8")).cameras).toEqual(["A", "B", "C", "D"]);
     expect(JSON.parse(readFileSync(path.join(scene, "manifest.json"), "utf8")).durationS).toBe(4); // endS - startS
+    expect(JSON.parse(readFileSync(path.join(scene, "manifest.json"), "utf8")).presynced).toBe(true);
     for (const c of "ABCD") {
       const p = await probe(path.join(scene, `cam-${c}.webm`));
       expect(p.durationS).toBeGreaterThan(3.8);
