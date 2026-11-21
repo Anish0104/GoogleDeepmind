@@ -34,7 +34,7 @@ import { z } from "zod";
 import type { Audit, CameraId, Claim, ClaimResult, GridRow, SceneManifest } from "@/lib/types";
 import { THRESHOLDS } from "@/lib/config";
 import { assertBudget, BudgetExceededError } from "@/lib/cost";
-import { NotFoundError, loadManifest, loadResults, readJson, saveResult, scenePath, writeJson } from "@/lib/store/scene";
+import { NotFoundError, loadManifest, loadResults, readJson, saveResult, scenePath, serialised, writeJson } from "@/lib/store/scene";
 import { selectCitation, type CitationGoal } from "@/lib/inference/citation";
 import { evidenceForTarget } from "@/lib/inference/evidence";
 import { CAMERA_IDS } from "@/lib/inference/grid";
@@ -167,21 +167,6 @@ async function labelClaim(
 }
 
 // ---------- run ----------
-
-const running = new Map<string, Promise<unknown>>();
-
-/** Serialises account runs per scene within this process. */
-async function serialised<T>(sceneId: string, fn: () => Promise<T>): Promise<T> {
-  const prev = running.get(sceneId) ?? Promise.resolve();
-  const run = prev.then(fn, fn);
-  const tail = run.catch(() => undefined);
-  running.set(sceneId, tail);
-  try {
-    return await run;
-  } finally {
-    if (running.get(sceneId) === tail) running.delete(sceneId);
-  }
-}
 
 /** Runs the initial account for a scene and returns one ClaimResult per extracted claim, in order. */
 export async function runAccount(sceneId: string, transcript: unknown): Promise<ClaimResult[]> {

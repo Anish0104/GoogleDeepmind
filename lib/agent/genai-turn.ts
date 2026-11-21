@@ -1,8 +1,6 @@
 // OWNER: Dev 3. Real StandinModel: one @google/genai generateContent call with function calling.
 // Exactly two function declarations (inspect_window, stop), mirroring InspectWindowArgsSchema and
 // StopArgsSchema in bridge.ts (a test keeps them in sync). Field names checked against @google/genai 3.6.1.
-import { appendFile, mkdir } from "node:fs/promises";
-import path from "node:path";
 import {
   ApiError,
   FunctionCallingConfigMode,
@@ -14,6 +12,8 @@ import {
   type GenerateContentResponseUsageMetadata,
 } from "@google/genai";
 import { COST_LOG, MODELS } from "@/lib/config";
+import { recordCost } from "@/lib/cost";
+import { INSPECT_WINDOW_DESCRIPTION, STOP_DESCRIPTION } from "@/lib/agent/prompts";
 import type { CostRecord } from "@/lib/types";
 import type { ModelReply, ModelRequest, StandinModel } from "@/lib/agent/standin";
 
@@ -21,9 +21,7 @@ import type { ModelReply, ModelRequest, StandinModel } from "@/lib/agent/standin
 
 export const INSPECT_WINDOW_DECLARATION: FunctionDeclaration = {
   name: "inspect_window",
-  description:
-    "Check one short clip from one camera. Use only a camera in includedCameras and a window inside " +
-    "allowedRangeS that is 1-4 s long and does not overlap alreadyChecked on that camera.",
+  description: INSPECT_WINDOW_DESCRIPTION,
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -43,7 +41,7 @@ export const INSPECT_WINDOW_DECLARATION: FunctionDeclaration = {
 
 export const STOP_DECLARATION: FunctionDeclaration = {
   name: "stop",
-  description: "Stop when no allowed clip could change the result.",
+  description: STOP_DESCRIPTION,
   parameters: {
     type: Type.OBJECT,
     properties: { reason: { type: Type.STRING, description: "One sentence: why you are stopping." } },
@@ -87,11 +85,9 @@ export function standinUsd(inputTokens: number, outputTokens: number): number {
 }
 
 // TODO: switch to lib/gemini/client.ts once Dev 1 ships it.
-/** Appends one CostRecord to the JSONL cost log (COST_LOG by default), creating the folder if needed. */
+/** Appends one CostRecord to the cost log. Kept as a name for existing callers; the writer is lib/cost.ts. */
 export async function appendCostRecord(record: CostRecord, logPath: string = COST_LOG): Promise<void> {
-  const file = path.resolve(logPath);
-  await mkdir(path.dirname(file), { recursive: true });
-  await appendFile(file, JSON.stringify(record) + "\n", "utf8");
+  await recordCost(record, logPath);
 }
 
 // ---------- retries ----------

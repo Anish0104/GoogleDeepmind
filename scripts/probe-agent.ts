@@ -19,7 +19,7 @@ import { LIMITS, MODELS } from "@/lib/config";
 import { assertBudget } from "@/lib/cost";
 import { parseToolCall, validate } from "@/lib/agent/bridge";
 import { appendCostRecord } from "@/lib/agent/genai-turn";
-import { SYSTEM_PROMPTS } from "@/lib/agent/prompts";
+import { INSPECT_WINDOW_DESCRIPTION, STOP_DESCRIPTION, SYSTEM_PROMPTS } from "@/lib/agent/prompts";
 import { buildUserMessage } from "@/lib/agent/standin";
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
@@ -36,9 +36,7 @@ const TOOLS = [
   {
     type: "function" as const,
     name: "inspect_window",
-    description:
-      "Check one short clip from one camera. Use only a camera in includedCameras and a window inside " +
-      "allowedRangeS that is 1-4 s long, overlaps the claim window and does not overlap alreadyChecked.",
+    description: INSPECT_WINDOW_DESCRIPTION,
     parameters: {
       type: "object",
       properties: {
@@ -54,7 +52,7 @@ const TOOLS = [
   {
     type: "function" as const,
     name: "stop",
-    description: "Stop when no allowed clip could change the result.",
+    description: STOP_DESCRIPTION,
     parameters: {
       type: "object",
       properties: { reason: { type: "string", description: "One sentence: why you are stopping." } },

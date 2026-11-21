@@ -1,19 +1,25 @@
-// OWNER: Dev 3. One Gemini Managed Agent environment per scene, created at scene start so it's warm.
-// Interactions API: agent MODELS.AGENT_ID, environment "remote", tools = only inspect_window and stop,
-// no network, agent_config.max_total_tokens = LIMITS.AGENT_MAX_TOTAL_TOKENS.
-// Confirm exact field names at 10:30. Managed agents may need event credits: use standin.ts until then.
-import { notImplemented } from "@/lib/not-implemented";
+// OWNER: Dev 3. Per-run session state for the Gemini Managed Agent (Interactions API).
+// One session per agent run (one claim, one role). Never reuse a session or its environment across claims:
+// startAgent() creates a fresh one for every run.
 
-export interface AgentEnvironment {
-  sceneId: string;
-  environmentId: string;
-  createdAt: string;
+/** A function call the agent made that we still owe a function_result for. */
+export interface PendingCall {
+  id: string;
+  name: string;
 }
 
-export async function createEnvironment(_sceneId: string): Promise<AgentEnvironment> {
-  return notImplemented("Dev 3", "createEnvironment");
+export interface AgentSession {
+  /** id of the latest interaction; sent as previous_interaction_id on the next turn. */
+  interactionId?: string;
+  /** environment_id from the first response; sent as environment on every later turn. */
+  environmentId?: string;
+  /** The call handed to the loop this turn; its result goes back on the next turn. */
+  pending?: PendingCall;
+  /** Extra calls from the same turn; they go back as is_error results so the session isn't left hanging. */
+  extra?: PendingCall[];
 }
 
-export async function getEnvironment(_sceneId: string): Promise<AgentEnvironment | null> {
-  return notImplemented("Dev 3", "getEnvironment");
+/** A fresh, empty session for one agent run. */
+export function newSession(): AgentSession {
+  return {};
 }

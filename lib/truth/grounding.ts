@@ -16,6 +16,9 @@
 // - Person: exact person id, else every distinguishing witness word (generic words like "person",
 //   "man", "someone" removed) must appear in exactly ONE person's description. Scout descriptions are
 //   appearance only, so a NAME never matches and is never linked to someone by clothing.
+// - State values compare by stateForm() (lib/truth/text.ts): articles ignored and one form per word,
+//   so witness wording "dodged"/"moved" grounds to "dodging"/"moving". Never synonyms; if two question
+//   values share a form, the claim is ambiguous and stays unresolved.
 // - Actions must be the canonical strings splitClaims() produces: "move to zone X", "located in zone X",
 //   "pick up", "give to <recipient>", "state <value>". Anything else is ungrounded.
 // - A role that determines the target (the take actor, the give recipient) is resolved only if it maps
@@ -28,7 +31,7 @@ import type { Claim, Question } from "@/lib/types";
 import type { Person } from "@/lib/perception/scout";
 import { indexQuestions, normText, normValue, toZone } from "@/lib/inference/grid";
 import type { EvidenceTarget } from "@/lib/inference/evidence";
-import { withoutArticles } from "@/lib/truth/text";
+import { stateForm } from "@/lib/truth/text";
 
 /** Raw scene files as loaded; each may be missing or malformed. */
 export interface SceneRegistry {
@@ -190,8 +193,9 @@ export function resolveGrounding(claim: Claim, registry: SceneRegistry): ClaimGr
   const of = (p: Question["predicate"]) => qs.filter((q) => q.predicate === p);
 
   const pick = (p: "location" | "heldBy" | "state", value: string): EvidenceTarget | string => {
-    // State values compare without articles ("past the entry line" == "past entry line"); others exactly.
-    const canon = (v: string) => (p === "state" ? withoutArticles(v) : normValue(p, v));
+    // State values compare by stateForm(): no articles, one form per word ("dodged" == "dodging",
+    // "past the entry line" == "past entry line"). Zones and holders compare exactly.
+    const canon = (v: string) => (p === "state" ? stateForm(v) : normValue(p, v));
     const same = of(p).filter((q) => canon(q.value) === canon(value));
     if (same.length === 0) return `no ${p} question for "${value}" on ${entity.id}`;
     if (same.length > 1) return `several ${p} questions for "${value}" on ${entity.id}`;

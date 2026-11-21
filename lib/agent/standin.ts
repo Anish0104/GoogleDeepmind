@@ -4,7 +4,8 @@
 import type { AgentMenu, AgentStep } from "@/lib/types";
 import type { ToolCall } from "@/lib/agent/bridge";
 import type { TurnInput, TurnOutput } from "@/lib/agent/loop";
-import { SYSTEM_PROMPTS } from "@/lib/agent/prompts";
+import { CLIP_OVERLAP_RULE, CLIPS_CHECKED_LINE, STILLS_NOTE, SYSTEM_PROMPTS } from "@/lib/agent/prompts";
+import { menuForAgent, rejectionFeedback } from "@/lib/agent/feedback";
 
 export type { ToolCall };
 
@@ -32,13 +33,18 @@ export interface StandinModel {
   generate(req: ModelRequest): Promise<ModelReply>;
 }
 
-/** What the agent saw of an earlier step: its call, any rejection and the clip's scores. No usage data. */
-function summariseStep(s: AgentStep) {
+/**
+ * What the agent saw of an earlier step: its call, any rejection (with the claim window and a valid example
+ * window) and the clip's scores. No usage data.
+ */
+function summariseStep(s: AgentStep, menu: AgentMenu) {
+  const fb = s.action === "rejected" ? rejectionFeedback(s, menu) : undefined;
   return {
     n: s.n,
     action: s.action,
     args: s.args,
     ...(s.rejectionReason ? { rejectionReason: s.rejectionReason } : {}),
+    ...(fb ? { claimWindowS: fb.claimWindowS, ...(fb.validExample ? { validExample: fb.validExample } : {}) } : {}),
     ...(s.result
       ? {
           result: {
@@ -59,10 +65,14 @@ function summariseStep(s: AgentStep) {
  * plus a summary of this agent's own earlier steps. Nothing outside the menu goes in.
  */
 export function buildUserMessage(menu: AgentMenu, history: AgentStep[]): string {
-  const steps = history.length ? JSON.stringify(history.map(summariseStep)) : "none";
+  const steps = history.length ? JSON.stringify(history.map((s) => summariseStep(s, menu))) : "none";
   return [
     "Menu (the only cameras, windows and facts you may use):",
-    JSON.stringify(menu),
+    JSON.stringify(menuForAgent(menu)),
+    "",
+    CLIP_OVERLAP_RULE,
+    CLIPS_CHECKED_LINE,
+    STILLS_NOTE,
     "",
     `Your earlier steps: ${steps}`,
     "",
