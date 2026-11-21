@@ -15,7 +15,7 @@ import type {
   SceneManifest,
   Verdict,
 } from "@/lib/types";
-import { runAgent, type AgentDeps, type TurnInput, type TurnOutput } from "@/lib/agent/loop";
+import { checkedWindowFor, runAgent, type AgentDeps, type TurnInput, type TurnOutput } from "@/lib/agent/loop";
 
 const claim: Claim = {
   id: "c1",
@@ -419,6 +419,36 @@ describe("runAgent", () => {
     ]);
   });
 
+  it("checks only the part of a valid clip inside the claim window, and records both windows", async () => {
+    // claim window [10, 14]; the agent asks A 12-15 (valid: overlaps the claim, inside allowedRangeS [5, 20]).
+    const { deps, run } = setup({ script: [inspect("A", 12, 15), stop()] });
+    const out = await run();
+    expect(deps.checkWindow.mock.calls[0]![0].window).toEqual([12, 14]);
+    expect(out.steps[0]).toMatchObject({
+      action: "inspect_window",
+      args: { camera_id: "A", start_s: 12, end_s: 15 }, // the requested window
+      checkedWindow: [12, 14],
+      result: { window: [12, 14] },
+    });
+    expect(out.result.evidence[0]!.window).toEqual([12, 14]);
+  });
+
+  it("a request already inside the claim window is checked as is", async () => {
+    const { deps, run } = setup({ script: [inspect("B", 10, 12), stop()] });
+    const out = await run();
+    expect(deps.checkWindow.mock.calls[0]![0].window).toEqual([10, 12]);
+    expect(out.steps[0]!.checkedWindow).toEqual([10, 12]);
+  });
+
+  it("a failed check still records the checked window", async () => {
+    const { run } = setup({
+      script: [inspect("B", 13, 16), stop()],
+      overrides: { checkWindow: async () => Promise.reject(new Error("ffmpeg exited 1")) },
+    });
+    const out = await run();
+    expect(out.steps[0]).toMatchObject({ action: "rejected", checkedWindow: [13, 14] });
+  });
+
   it("passes only the menu and its own steps to the agent", async () => {
     const { run, turnInputs } = setup({ script: [stop()] });
     await run();
@@ -644,5 +674,20 @@ describe("runAgent", () => {
       expect(out.result.history[0]?.blocked).toBeUndefined();
       expect(deps.enforceDowngradeOnly).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("checkedWindowFor", () => {
+  it("clamps the requested window to the claim window", () => {
+    expect(checkedWindowFor([22, 26], [21, 24], [18, 27])).toEqual([22, 24]);
+    expect(checkedWindowFor([18.5, 22], [21, 24], [18, 27])).toEqual([21, 22]);
+    expect(checkedWindowFor([21.5, 23.5], [21, 24], [18, 27])).toEqual([21.5, 23.5]);
+  });
+
+  it("widens anything under 1 s evenly to 1 s, staying inside allowedRangeS", () => {
+    expect(checkedWindowFor([23.6, 26], [21, 24], [18, 27])).toEqual([23.3, 24.3]); // 0.4 s -> centred 1 s
+    expect(checkedWindowFor([20, 23], [21, 21.4], [18, 27])).toEqual([20.7, 21.7]); // short claim window
+    expect(checkedWindowFor([20, 23], [21, 21.4], [21, 27])).toEqual([21, 22]); // pushed in at the range start
+    expect(checkedWindowFor([26.8, 28], [26.5, 27], [18, 27])).toEqual([26, 27]); // pushed in at the range end
   });
 });

@@ -153,6 +153,7 @@ export interface AgentStep {
   droppedFields?: string[]; // unknown fields the bridge stripped from the agent's tool call
   implicitStop?: boolean; // the agent finished without calling stop; the loop recorded a stop for it
   mode?: AgentMode; // which turn function ran this step
+  checkedWindow?: [number, number]; // the part of the requested clip actually checked (clamped to the claim window)
   result?: Evidence;
   tokens: number;
   costUsd: number;

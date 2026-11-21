@@ -171,16 +171,38 @@ export function buildScene() {
   return { stillsRows, clipRows, initial };
 }
 
-/** Fake Dev 1 checkWindow(): scores the requested camera/window from the clip grid (the hidden truth). */
+/**
+ * Fake Dev 1 checkWindow(), answering from the clip grid (the hidden truth). It scores the WHOLE requested clip
+ * the way the real checkWindow() asks Decision 1 about it (lib/perception/checkWindow.ts), and always answers
+ * numbers, like the real one:
+ * - visible: "clearly visible ... for most of its length" -> the visibility that holds for at least half of
+ *   the clip's length (duration-weighted median of evidenceFor()'s runs).
+ * - supports: "visibly shown happening" -> the best support of any part of the clip that can see, else 0.
+ * - contradicts: "false if ... blocked or out of frame; true only if the clip visibly shows something
+ *   different" -> the contradiction of a view that sees the whole clip, else 0.
+ */
 function clipCheck(clipRows: GridRow[]) {
   return async (a: CheckWindowArgs): Promise<Evidence> => {
     const runs = evidenceFor({ ...a.claim, window: a.window }, rowsFor(clipRows, a.claim.id), QUESTIONS).filter(
       (e) => e.camera === a.camera,
     );
-    const pick = runs.find((e) => e.visible >= THRESHOLDS.USABLE) ?? runs[0];
     const clipId = `clip:${SCENE_ID}:${a.camera}:${a.window[0]}-${a.window[1]}:${a.crop}`;
-    if (!pick) return { camera: a.camera, window: a.window, visible: 0, supports: null, contradicts: null, clipId, source: a.source };
-    return { ...pick, window: a.window, clipId, source: a.source };
+    const len = (e: Evidence) => Math.max(0, Math.min(e.window[1], a.window[1]) - Math.max(e.window[0], a.window[0]));
+    const total = runs.reduce((n, e) => n + len(e), 0);
+    let visible = 0;
+    let seen = 0;
+    for (const e of [...runs].sort((x, y) => y.visible - x.visible)) {
+      seen += len(e);
+      if (seen >= total / 2 - 1e-9) {
+        visible = e.visible;
+        break;
+      }
+    }
+    const usable = runs.filter((e) => e.visible >= THRESHOLDS.USABLE);
+    const supports = Math.max(0, ...usable.map((e) => e.supports ?? 0));
+    const whole = usable.find((e) => e.window[0] <= a.window[0] + 1e-9 && e.window[1] >= a.window[1] - 1e-9);
+    const contradicts = whole?.contradicts ?? 0;
+    return { camera: a.camera, window: a.window, visible, supports, contradicts, clipId, source: a.source };
   };
 }
 

@@ -12,6 +12,7 @@ import {
   runKillTestH,
   savedCallsOf,
   type HReport,
+  type SavedCall,
   type SavedCalls,
 } from "@/scripts/killtests/h";
 
@@ -150,31 +151,40 @@ describe("kill test H --save / --replay / --trace", () => {
     expect(r.rows.find((x) => x.claimId === "r3")!.steps).toBe("stop"); // no saved calls
   });
 
-  it("traces r2 step by step: a usable clip past the claim window replaces the audit (0.935 -> 0.880) and r2 loses Contradicted", async () => {
-    const saved: SavedCalls = {
-      savedAt: "",
-      mode: "replay",
-      claims: {
-        r2: [
-          { tool: "inspect_window", camera: "A", start: 22, end: 26, crop: "entity", reason: "after the move" },
-          { tool: "inspect_window", camera: "B", start: 21, end: 24, crop: "entity", reason: "B" },
-        ],
-      },
-    };
-    const r = await runKillTestH("replay", replayTurn(saved), { trace: "r2" });
+  const r2Calls = (...calls: SavedCall[]): SavedCalls => ({ savedAt: "", mode: "replay", claims: { r2: calls } });
+  const ins = (camera: "A" | "B" | "C", start: number, end: number): SavedCall => ({ tool: "inspect_window", camera, start, end, crop: "entity", reason: "replay" });
+
+  it("replaying the earlier r2 trace: A 22–26 s is checked as 22–24 s, the audit keeps 0.935 and r2 stays Contradicted", async () => {
+    const r = await runKillTestH("replay", replayTurn(r2Calls(ins("A", 22, 26), ins("B", 21, 24))), { trace: "r2" });
     const t = r.trace!.join("\n");
     expect(t).toMatch(/^Trace r2: "Sam put the blue cup in zone D", claim window 21–24 s, starts Contradicted/);
     expect(t).toMatch(/step 1: inspect_window \{"camera_id":"A","start_s":22,"end_s":26/);
-    expect(t).toMatch(/fake checkWindow A 22–26 s \(entity\) -> A 22–26 s vis 0\.907 sup 0\.049 con 0\.880/);
-    expect(t).toMatch(/audit before: support 0\.049 contradict 0\.935/);
-    expect(t).toMatch(/audit after: {2}support 0\.049 contradict 0\.880 .*\(REPLACED by this clip's audit\)/);
-    expect(t).toMatch(/verdict\(\) -> Insufficient/);
-    expect(t).toMatch(/audit contradict ≥ 0\.9 ✗ \(0\.880\)/);
-    expect(t).toMatch(/\(kept: clip not usable\)/); // step 2: B is blocked, the audit stays
-    expect(t).toMatch(/final: Insufficient/);
-    // Same pass/fail rules: a right label changed.
-    expect(r.rightChanged).toBeGreaterThanOrEqual(1);
-    expect(r.pass).toBe(false);
-    expect(formatReport(r)).toContain("Trace r2:");
+    expect(t).toMatch(/fake checkWindow A 22–24 s \(entity\) -> A 22–24 s vis 0\.907 sup 0\.049 con 0\.935/);
+    expect(t).toMatch(/audit after: {2}support 0\.049 contradict 0\.935/);
+    expect(t).not.toMatch(/0\.880/);
+    expect(t).toMatch(/audit contradict ≥ 0\.9 ✓ \(0\.935\)/);
+    expect(t).toMatch(/final: Contradicted/);
+    expect(r.rows.find((x) => x.claimId === "r2")).toMatchObject({ final: "Contradicted" });
+  });
+
+  it("B 22.5–26.5 s on r2 (mostly blocked) comes back not usable and doesn't replace the audit", async () => {
+    const r = await runKillTestH("replay", replayTurn(r2Calls(ins("A", 21, 24), ins("B", 22.5, 26.5))), { trace: "r2" });
+    const t = r.trace!.join("\n");
+    expect(t).toMatch(/fake checkWindow B 22\.5–24 s \(entity\) -> B 22\.5–24 s vis 0\.1\d\d/);
+    expect(t.split("step 2:")[1]).toMatch(/\(kept: clip not usable\)/);
+    expect(t).toMatch(/final: Contradicted/);
+  });
+
+  it("a fully blocked clip answers numbers like Dev 1's checkWindow: low visibility, 0 support, 0 contradiction", async () => {
+    const r = await runKillTestH("replay", replayTurn(r2Calls(ins("B", 21, 24))), { trace: "r2" });
+    expect(r.trace!.join("\n")).toMatch(/fake checkWindow B 21–24 s \(entity\) -> B 21–24 s vis 0\.1\d\d sup 0\.000 con 0\.000/);
+  });
+
+  it("a wrong claim is still downgraded when the agent's clip runs past the claim window", async () => {
+    // w1 (claim window 69–72 s, true claim wrongly Contradicted by the stills): A 70–74 s is checked as 70–72 s.
+    const saved: SavedCalls = { savedAt: "", mode: "replay", claims: { w1: [{ tool: "inspect_window", camera: "A", start: 70, end: 74, crop: "entity", reason: "after" }] } };
+    const r = await runKillTestH("replay", replayTurn(saved), { trace: "w1" });
+    expect(r.trace!.join("\n")).toMatch(/fake checkWindow A 70–72 s/);
+    expect(r.rows.find((x) => x.claimId === "w1")).toMatchObject({ initial: "Contradicted", final: "Insufficient" });
   });
 });

@@ -26,6 +26,9 @@ export const CLIP_OVERLAP_RULE =
   "The padding in allowedRangeS is there so a clip can start a little before or end a little after the claim " +
   "window while still overlapping it.";
 
+/** Shown with the menu and in the tool description: the loop checks only the overlap with the claim window. */
+export const CLIPS_CHECKED_LINE = "Clips are checked only where they overlap claimWindowS.";
+
 /** Shown with the menu: re-checking the claim window on a camera from the first pass is allowed and useful. */
 export const STILLS_NOTE =
   "The first pass looked at stills only. A clip over the claim window itself is new evidence, even on a camera already used.";
@@ -35,6 +38,7 @@ export const INSPECT_WINDOW_DESCRIPTION =
   "Check one short clip from one camera. Use only a camera in includedCameras and a window inside allowedRangeS " +
   "that is 1-4 s long and does not overlap alreadyChecked on that camera. The clip must share at least 1 s with " +
   "the claim window (claimWindowS); a clip that only touches its start or end is rejected. " +
-  "Example: claim window 21–24 s → 20–23 s is fine; 18–21 s is rejected.";
+  "Example: claim window 21–24 s → 20–23 s is fine; 18–21 s is rejected. " +
+  "Clips are checked only where they overlap claimWindowS.";
 
 export const STOP_DESCRIPTION = "Stop when no allowed clip could change the result.";

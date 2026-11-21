@@ -96,6 +96,30 @@ export const defaultDeps: Omit<AgentDeps, "turn" | "start"> = {
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
+ * The window actually checked for a valid inspect_window call: the requested window clamped to the claim
+ * window, widened evenly to CLIP_MIN_S inside allowedRangeS if that is shorter. validate() already guaranteed
+ * the request overlaps the claim window, so the clamp is never empty.
+ */
+export function checkedWindowFor(
+  requested: [number, number],
+  claimWindow: [number, number],
+  allowedRangeS: [number, number],
+): [number, number] {
+  const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
+  let start = Math.max(requested[0], claimWindow[0]);
+  let end = Math.min(requested[1], claimWindow[1]);
+  if (end - start < LIMITS.CLIP_MIN_S) {
+    const [lo, hi] = allowedRangeS;
+    const mid = (start + end) / 2;
+    start = mid - LIMITS.CLIP_MIN_S / 2;
+    end = mid + LIMITS.CLIP_MIN_S / 2;
+    if (start < lo) [start, end] = [lo, lo + LIMITS.CLIP_MIN_S];
+    if (end > hi) [start, end] = [hi - LIMITS.CLIP_MIN_S, hi];
+  }
+  return [r6(start), r6(end)];
+}
+
+/**
  * Runs one agent on one claim until it stops, follow-ups run out (forced stop), the budget is hit,
  * or a turn fails. Every step is logged to agent-steps.jsonl and the final result is saved.
  * Never throws for a budget stop or a model error (turn failed after retries); rethrows other assertBudget() errors.
@@ -193,13 +217,16 @@ export async function runAgent(
       continue;
     }
 
+    // Our rule: only the part of the clip inside the claim window is checked and audited. The request (and
+    // what consume() marks as checked) is unchanged; the step records both.
+    const checkedWindow = checkedWindowFor([call.args.start_s, call.args.end_s], claim.window, menu.allowedRangeS);
     let evidence: Evidence;
     let cited: Audit;
     try {
       evidence = await d.checkWindow({
         sceneId,
         camera: call.args.camera_id,
-        window: [call.args.start_s, call.args.end_s],
+        window: checkedWindow,
         crop: call.args.crop,
         claim,
         source: agent,
@@ -211,6 +238,7 @@ export async function runAgent(
         action: "rejected",
         args: call.args,
         rejectionReason: `Check failed: ${errMsg(e)}`,
+        checkedWindow,
         droppedFields,
         ...usage,
       });
@@ -226,6 +254,7 @@ export async function runAgent(
         action: "rejected",
         args: call.args,
         rejectionReason: SAFETY_GUARD_REASON,
+        checkedWindow,
         result: evidence,
         droppedFields,
         ...usage,
@@ -234,7 +263,7 @@ export async function runAgent(
     }
     result = applied.result;
     menu = { ...consume(menu, call.args, evidence), currentVerdict: result.verdict };
-    await record({ action: "inspect_window", args: call.args, result: evidence, droppedFields, ...usage });
+    await record({ action: "inspect_window", args: call.args, checkedWindow, result: evidence, droppedFields, ...usage });
   }
 
   await d.saveResult(sceneId, result);

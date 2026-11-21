@@ -4,7 +4,7 @@
 import type { AgentMenu, AgentStep } from "@/lib/types";
 import type { ToolCall } from "@/lib/agent/bridge";
 import type { TurnInput, TurnOutput } from "@/lib/agent/loop";
-import { CLIP_OVERLAP_RULE, STILLS_NOTE, SYSTEM_PROMPTS } from "@/lib/agent/prompts";
+import { CLIP_OVERLAP_RULE, CLIPS_CHECKED_LINE, STILLS_NOTE, SYSTEM_PROMPTS } from "@/lib/agent/prompts";
 import { menuForAgent, rejectionFeedback } from "@/lib/agent/feedback";
 
 export type { ToolCall };
@@ -71,6 +71,7 @@ export function buildUserMessage(menu: AgentMenu, history: AgentStep[]): string 
     JSON.stringify(menuForAgent(menu)),
     "",
     CLIP_OVERLAP_RULE,
+    CLIPS_CHECKED_LINE,
     STILLS_NOTE,
     "",
     `Your earlier steps: ${steps}`,
