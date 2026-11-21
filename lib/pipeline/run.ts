@@ -7,8 +7,8 @@
 // - probe records each included camera's recording (as a path relative to the scene folder) and the shortest
 //   duration into manifest.json, before perceiveScene() reads it. Excluded cameras are never probed.
 // - perceive gets, from the manifest and only when set: presynced (skip sync, zero offsets, no sync.json),
-//   questions (QUESTION_SETS[questionSet] instead of scout's) with that set's motion question ids as
-//   contextQuestionIds (QUESTION_SET_MOTION_IDS), and roi (crop slices to motion).
+//   questionSet (the set's name: perceiveScene writes its entities, people, questions and motion ids itself;
+//   an unknown name fails inside perceive via Dev 1's questionSet()), and roi (crop slices to motion).
 // - stills.json (camera -> middle still) is written from slices.json for the agents' menu; no model call.
 // - assertBudget() runs before perceive (scout and lattice call Gemini); a budget stop is a clean failed status
 //   with error "budget".
@@ -19,7 +19,6 @@ import { BudgetExceededError, assertBudget } from "@/lib/cost";
 import { recordingPath } from "@/lib/capture/files";
 import type { Slice } from "@/lib/capture/slice";
 import { perceiveScene, type PerceiveOptions, type PerceiveResult } from "@/lib/perception/perceive";
-import { QUESTION_SET_MOTION_IDS, QUESTION_SETS } from "@/lib/perception/questionSets";
 import { loadManifest, lockScene, NotFoundError, readJson, scenePath, writeJson } from "@/lib/store/scene";
 import { probe } from "@/lib/video/ffmpeg";
 import type { CameraId, Claim, RunStatus, SceneManifest } from "@/lib/types";
@@ -142,19 +141,9 @@ export async function runPipeline(sceneId: string, deps: PipelineDeps): Promise<
 
     // perceive: Dev 1's sync -> slice -> scout -> lattice in one call, with the manifest's options.
     await enter("perceive");
-    let questionSet: PerceiveOptions["questions"];
-    let motionIds: string[] | undefined;
-    if (updated.questionSet !== undefined) {
-      if (!Object.hasOwn(QUESTION_SETS, updated.questionSet)) {
-        throw new StageError(`Unknown question set "${updated.questionSet}". Known: ${Object.keys(QUESTION_SETS).join(", ")}.`);
-      }
-      questionSet = QUESTION_SETS[updated.questionSet];
-      motionIds = Object.hasOwn(QUESTION_SET_MOTION_IDS, updated.questionSet) ? QUESTION_SET_MOTION_IDS[updated.questionSet] : undefined;
-    }
-    const fromManifest: Pick<PerceiveOptions, "presynced" | "questions" | "contextQuestionIds" | "roi"> = {
+    const fromManifest: Pick<PerceiveOptions, "presynced" | "questionSet" | "roi"> = {
       ...(updated.presynced !== undefined ? { presynced: updated.presynced } : {}),
-      ...(questionSet ? { questions: questionSet } : {}),
-      ...(motionIds && motionIds.length ? { contextQuestionIds: motionIds } : {}),
+      ...(updated.questionSet !== undefined ? { questionSet: updated.questionSet } : {}),
       ...(updated.roi !== undefined ? { roi: updated.roi } : {}),
     };
     await d.assertBudget();

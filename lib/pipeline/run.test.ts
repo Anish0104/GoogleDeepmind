@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BudgetExceededError } from "@/lib/cost";
 import type { Slice } from "@/lib/capture/slice";
 import type { PerceiveOptions, PerceiveResult } from "@/lib/perception/perceive";
-import { QUESTION_SET_MOTION_IDS, QUESTION_SETS } from "@/lib/perception/questionSets";
+import { questionSet as loadQuestionSet } from "@/lib/perception/questionSets";
 import { isSceneLocked, lockScene } from "@/lib/store/scene";
 import type { CameraId, GridRow, RunStatus, SceneManifest } from "@/lib/types";
 import { runPipeline, startPipeline, type PipelineDeps } from "@/lib/pipeline/run";
@@ -59,6 +59,8 @@ function setup(o: Opts = {}) {
       calls.push("perceive");
       for (const step of ["sync", "slice", "scout"] as const) {
         if (o.failAt?.stage === `perceive:${step}`) throw o.failAt.error;
+        // Like the real perceiveScene: the named set is resolved (Dev 1's questionSet()) at the scout step.
+        if (step === "scout" && opts.questionSet !== undefined) loadQuestionSet(opts.questionSet);
         opts.onStep?.(step, `${step} done`);
       }
       if (o.failAt?.stage === "perceive:lattice") throw o.failAt.error;
@@ -174,46 +176,54 @@ describe("runPipeline: probe -> perceive -> stills, ending at perceived", () => 
     expect(calls).not.toContain("perceive");
   });
 
-  it("presynced: true — passes presynced, the manifest's question set and roi to perceiveScene; the probe keeps them", async () => {
+  it("presynced: true — passes presynced, the manifest's questionSet name and roi to perceiveScene; the probe keeps them", async () => {
     const { deps, writes } = setup({ manifest: { presynced: true, questionSet: "warehouse", roi: true } });
     expect((await runPipeline(SCENE, deps)).status).toBe("perceived");
     const opts = deps.perceiveScene.mock.calls[0]![1];
     expect(opts.presynced).toBe(true);
-    expect(opts.questions).toBe(QUESTION_SETS.warehouse);
+    expect(opts.questionSet).toBe("warehouse");
     expect(opts.roi).toBe(true);
     expect(writes.find((w) => w.file === "manifest.json")?.data).toMatchObject({ presynced: true, questionSet: "warehouse", roi: true });
   });
 
-  it.each([
-    ["sdg-nearmiss", ["forklift:state:moving", "worker:state:dodging"]],
-    ["warehouse", ["forklift:state:stationary"]],
-  ])("questionSet %s also passes its motion question ids as contextQuestionIds", async (set, ids) => {
-    const { deps } = setup({ manifest: { presynced: true, questionSet: set } });
-    expect((await runPipeline(SCENE, deps)).status).toBe("perceived");
-    const opts = deps.perceiveScene.mock.calls[0]![1];
-    expect(opts.questions).toBe(QUESTION_SETS[set]);
-    expect(opts.contextQuestionIds).toEqual(ids);
-    expect(opts.contextQuestionIds).toBe(QUESTION_SET_MOTION_IDS[set]);
-  });
+  it.each(["sdg-nearmiss", "warehouse"])(
+    "questionSet %s is passed by name only: perceiveScene writes the set's questions and motion ids itself",
+    async (set) => {
+      const { deps } = setup({ manifest: { presynced: true, questionSet: set } });
+      expect((await runPipeline(SCENE, deps)).status).toBe("perceived");
+      const opts = deps.perceiveScene.mock.calls[0]![1];
+      expect(opts.questionSet).toBe(set);
+      expect(opts).not.toHaveProperty("questions");
+      expect(opts).not.toHaveProperty("contextQuestionIds");
+    },
+  );
 
   it("a scene without those fields passes none of them (perceiveScene keeps its own defaults)", async () => {
     const { deps } = setup();
     await runPipeline(SCENE, deps);
     const opts = deps.perceiveScene.mock.calls[0]![1];
     expect(opts).not.toHaveProperty("presynced");
-    expect(opts).not.toHaveProperty("questions");
+    expect(opts).not.toHaveProperty("questionSet");
     expect(opts).not.toHaveProperty("roi");
+    expect(opts).not.toHaveProperty("questions");
     expect(opts).not.toHaveProperty("contextQuestionIds");
   });
 
-  it("an unknown question set in a hand-edited manifest fails stage perceive before calling it", async () => {
+  it("an unknown question set fails inside perceive (Dev 1's questionSet()) and the failure names the perceive stage", async () => {
     const { deps } = setup({ manifest: { questionSet: "kitchen" } });
     expect(await runPipeline(SCENE, deps)).toMatchObject({
       status: "failed",
       stage: "perceive",
-      error: expect.stringMatching(/Unknown question set "kitchen".*warehouse/),
+      error: expect.stringMatching(/^perceive \(scout, after slice\): unknown question set "kitchen" \(known: .*sdg-nearmiss.*\)/),
     });
-    expect(deps.perceiveScene).not.toHaveBeenCalled();
+    expect(deps.perceiveScene).toHaveBeenCalledTimes(1);
+    expect(deps.perceiveScene.mock.calls[0]![1].questionSet).toBe("kitchen");
+  });
+
+  it("the runner no longer reads QUESTION_SETS or QUESTION_SET_MOTION_IDS", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const src = await readFile(new URL("./run.ts", import.meta.url), "utf8");
+    expect(src).not.toMatch(/QUESTION_SETS|QUESTION_SET_MOTION_IDS|questionSets"/);
   });
 
   it("passes perceiveScene's maxSlicesPerCamera through, plus its own onStep/onRows", async () => {
