@@ -43,7 +43,7 @@ beforeAll(() => {
     "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "500k", path.join(sceneDir, "cam-A.webm"),
   ]);
   if (r.status !== 0) throw new Error(r.stderr.toString());
-}, 60_000);
+}, 180_000);
 
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
 

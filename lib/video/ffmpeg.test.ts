@@ -21,7 +21,7 @@ beforeAll(() => {
     "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "500k", "-c:a", "libopus", "-shortest", src,
   ]);
   if (r.status !== 0) throw new Error(`fixture failed: ${r.stderr.toString()}`);
-}, 60_000);
+}, 180_000);
 
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
