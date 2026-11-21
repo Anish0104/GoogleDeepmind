@@ -4,12 +4,14 @@
 // Order: claims -> probe -> sync -> slice -> scout -> lattice -> per claim (evidence -> pickCitation -> audit
 // -> verdict -> saveResult) -> stills.json -> agents.
 // - claims.json is written by Dev 2's account route; missing or empty fails stage "claims" before any work.
-// - probe records each included camera's recording and the shortest duration into manifest.json.
+// - probe records each included camera's recording (as a path relative to the scene folder) and the shortest
+//   duration into manifest.json. Stored files are resolved through scenePath before any stage reads them.
 // - Excluded cameras are never probed, and their grid rows and evidence are dropped before any label work.
 // - assertBudget() runs before every Gemini-calling stage (scout, lattice, each audit, agents); a budget
 //   stop is a clean failed status with error "budget".
 // - Progress goes to data/scenes/<id>/run.json. A failed stage records its name and message; results
 //   already saved stay on disk.
+import path from "node:path";
 import { z } from "zod";
 import { BudgetExceededError, assertBudget } from "@/lib/cost";
 import { recordingPath } from "@/lib/capture/files";
@@ -19,7 +21,7 @@ import { evidenceFor } from "@/lib/inference/evidence";
 import { verdict } from "@/lib/inference/verdict";
 import { latticeScene } from "@/lib/perception/lattice";
 import { scout } from "@/lib/perception/scout";
-import { loadManifest, NotFoundError, readJson, saveResult, writeJson } from "@/lib/store/scene";
+import { loadManifest, NotFoundError, readJson, saveResult, scenePath, writeJson } from "@/lib/store/scene";
 import { audit } from "@/lib/truth/auditor";
 import { AuditUnavailableError } from "@/lib/truth/errors";
 import { probe } from "@/lib/video/ffmpeg";
@@ -47,6 +49,8 @@ const SCOUT_STILLS = 8;
 
 export interface PipelineDeps {
   loadManifest: (sceneId: string) => Promise<SceneManifest>;
+  /** The scene folder, or a file inside it (the store's scenePath). */
+  scenePath: (sceneId: string, file?: string) => string;
   loadClaims: (sceneId: string) => Promise<Claim[]>;
   recordingPath: (sceneId: string, camera: CameraId, files?: SceneManifest["files"]) => string | null;
   probe: (file: string) => Promise<{ durationS: number }>;
@@ -94,6 +98,7 @@ export async function loadClaims(sceneId: string): Promise<Claim[]> {
 /** The real stages. pickCitation is not on main yet, so callers must supply it. */
 export const defaultPipelineDeps: Omit<PipelineDeps, "pickCitation"> = {
   loadManifest,
+  scenePath,
   loadClaims,
   recordingPath,
   probe,
@@ -180,20 +185,30 @@ export async function runPipeline(sceneId: string, deps: PipelineDeps): Promise<
 
     // probe: files and durationS into manifest.json before sync.
     await enter("probe");
-    let manifest = await d.loadManifest(sceneId);
-    const excluded = new Set<CameraId>(manifest.excludedCameras);
-    const included = manifest.cameras.filter((c) => !excluded.has(c));
-    const files: SceneManifest["files"] = {};
+    const stored = await d.loadManifest(sceneId);
+    const excluded = new Set<CameraId>(stored.excludedCameras);
+    const included = stored.cameras.filter((c) => !excluded.has(c));
+    const sceneDir = d.scenePath(sceneId);
+    // On disk, files are relative to the scene folder. Dev 1's recordingPath() resolves a listed file against
+    // the working directory, so every stage gets them resolved through scenePath (absolute) instead.
+    const absolute = (files: SceneManifest["files"]): SceneManifest["files"] =>
+      Object.fromEntries(Object.entries(files).map(([c, f]) => [c, path.isAbsolute(f!) ? f : d.scenePath(sceneId, f!)]));
+    const relFiles: SceneManifest["files"] = {};
     const durations: number[] = [];
     for (const camera of included) {
-      const file = d.recordingPath(sceneId, camera, manifest.files);
+      const file = d.recordingPath(sceneId, camera, absolute(stored.files));
       if (!file) throw new StageError(`no recording for camera ${camera}`);
+      const rel = path.relative(sceneDir, file);
+      if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+        throw new StageError(`recording for camera ${camera} is outside the scene folder: ${file}`);
+      }
       const { durationS } = await d.probe(file);
-      files[camera] = file;
+      relFiles[camera] = rel.split(path.sep).join("/");
       durations.push(durationS);
     }
-    manifest = { ...manifest, files: { ...manifest.files, ...files }, durationS: Math.min(...durations) };
-    await d.writeJson(sceneId, "manifest.json", manifest); // atomic (temp file + rename)
+    const updated: SceneManifest = { ...stored, files: { ...stored.files, ...relFiles }, durationS: Math.min(...durations) };
+    await d.writeJson(sceneId, "manifest.json", updated); // atomic (temp file + rename)
+    const manifest: SceneManifest = { ...updated, files: absolute(updated.files) };
 
     await enter("sync");
     const sync = await d.syncScene(manifest);

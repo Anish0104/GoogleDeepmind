@@ -65,6 +65,8 @@ const slice = (camera: CameraId, t: number): Slice => ({
 
 interface Opts {
   claims?: Claim[];
+  storedFiles?: SceneManifest["files"];
+  recordingOutside?: CameraId;
   missingRecording?: CameraId;
   verdicts?: Record<string, Verdict>;
   agents?: Record<string, AgentName | null>;
@@ -84,13 +86,16 @@ function setup(o: Opts = {}) {
   };
   let nextBudgetStage = "";
   const deps = {
-    loadManifest: vi.fn(async () => structuredClone(manifest)),
+    loadManifest: vi.fn(async () => ({ ...structuredClone(manifest), files: o.storedFiles ?? {} })),
+    scenePath: (id: string, file?: string) => (file ? `/abs/data/scenes/${id}/${file}` : `/abs/data/scenes/${id}`),
     loadClaims: vi.fn(async () => {
       calls.push("claims");
       return o.claims ?? CLAIMS;
     }),
-    recordingPath: vi.fn((_s: string, camera: CameraId) => {
-      return camera === o.missingRecording ? null : `/abs/data/scenes/${SCENE}/cam-${camera}.webm`;
+    recordingPath: vi.fn((_s: string, camera: CameraId, _files?: SceneManifest["files"]) => {
+      if (camera === o.missingRecording) return null;
+      if (camera === o.recordingOutside) return `/elsewhere/cam-${camera}.webm`;
+      return `/abs/data/scenes/${SCENE}/cam-${camera}.webm`;
     }),
     probe: vi.fn(async (file: string) => {
       calls.push(`probe:${file.match(/cam-(\w)/)![1]}`);
@@ -101,7 +106,7 @@ function setup(o: Opts = {}) {
       fail("sync");
       return m.cameras.filter((c) => !m.excludedCameras.includes(c)).map((camera) => ({ camera, offsetS: 0, driftPerMin: 0, method: "both" }));
     }),
-    sliceScene: vi.fn(async (): Promise<Slice[]> => {
+    sliceScene: vi.fn(async (_m: SceneManifest, _sync: SyncResult[]): Promise<Slice[]> => {
       calls.push("slice");
       fail("slice");
       return (["A", "B", "C"] as CameraId[]).flatMap((c) => [0, 0.5, 1, 1.5, 2].map((t) => slice(c, t)));
@@ -213,19 +218,36 @@ describe("runPipeline", () => {
     expect(writes.find((w) => w.file === "stills.json")?.data).not.toHaveProperty("D");
   });
 
-  it("probe writes files and durationS (shortest included recording) into manifest.json", async () => {
+  it("probe writes files relative to the scene folder and durationS (shortest recording) into manifest.json", async () => {
     const { deps, writes } = setup();
     await runPipeline(SCENE, deps);
 
     const m = writes.find((w) => w.file === "manifest.json")?.data as SceneManifest;
     expect(m.durationS).toBe(28.5);
-    expect(m.files).toEqual({
+    expect(m.files).toEqual({ A: "cam-A.webm", B: "cam-B.webm", C: "cam-C.webm" });
+    // Dev 1's stages read files through recordingPath(), which resolves against the working directory, so
+    // they get the files resolved through scenePath (absolute), never the stored relative paths.
+    const abs = { A: `/abs/data/scenes/${SCENE}/cam-A.webm`, B: `/abs/data/scenes/${SCENE}/cam-B.webm`, C: `/abs/data/scenes/${SCENE}/cam-C.webm` };
+    expect(deps.syncScene.mock.calls[0]![0]).toMatchObject({ durationS: 28.5, files: abs });
+    expect(deps.sliceScene.mock.calls[0]![0]).toMatchObject({ files: abs });
+  });
+
+  it("stored relative files are resolved through scenePath when reading", async () => {
+    const { deps } = setup({ storedFiles: { A: "cam-A.webm", B: "recordings/b.mp4" } });
+    await runPipeline(SCENE, deps);
+    expect(deps.recordingPath.mock.calls[0]![2]).toEqual({
       A: `/abs/data/scenes/${SCENE}/cam-A.webm`,
-      B: `/abs/data/scenes/${SCENE}/cam-B.webm`,
-      C: `/abs/data/scenes/${SCENE}/cam-C.webm`,
+      B: `/abs/data/scenes/${SCENE}/recordings/b.mp4`,
     });
-    // syncScene sees the updated manifest.
-    expect(deps.syncScene.mock.calls[0]![0]).toMatchObject({ durationS: 28.5, files: m.files });
+  });
+
+  it("a recording outside the scene folder fails stage probe with the camera id", async () => {
+    const { deps } = setup({ recordingOutside: "C" });
+    expect(await runPipeline(SCENE, deps)).toMatchObject({
+      status: "failed",
+      stage: "probe",
+      error: expect.stringMatching(/camera C.*outside the scene folder/),
+    });
   });
 
   it("a missing recording for an included camera fails stage probe with the camera id", async () => {
