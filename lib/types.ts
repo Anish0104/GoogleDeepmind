@@ -147,6 +147,7 @@ export interface AgentStep {
   action: "inspect_window" | "stop" | "rejected";
   args: InspectWindowArgs | StopArgs;
   rejectionReason?: string;
+  droppedFields?: string[]; // unknown fields the bridge stripped from the agent's tool call
   result?: Evidence;
   tokens: number;
   costUsd: number;
