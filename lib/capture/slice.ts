@@ -7,6 +7,7 @@ import { LIMITS } from "@/lib/config";
 import { recordingPath } from "@/lib/capture/files";
 import { scenePath, writeJson } from "@/lib/store/scene";
 import { probe, segments, stills, type Box } from "@/lib/video/ffmpeg";
+import { rm } from "node:fs/promises";
 import { sceneRoi } from "@/lib/capture/roi";
 
 export interface Slice {
@@ -24,6 +25,12 @@ const round = (x: number) => Math.round(x * 1000) / 1000;
 export interface SliceOptions {
   /** Crop each camera's slices to where things move (stills stay full-frame); writes roi.json. */
   roi?: boolean;
+  /**
+   * Only slice [start, end) of the synced timeline, e.g. an incident window in a long recording.
+   * Slice times stay on the original timeline (a slice at 47.5 s is t = 47.5), so nothing downstream
+   * needs to map times back.
+   */
+  range?: [number, number];
 }
 
 export async function sliceScene(manifest: SceneManifest, sync: SyncResult[], opts: SliceOptions = {}): Promise<Slice[]> {
@@ -48,11 +55,28 @@ export async function sliceScene(manifest: SceneManifest, sync: SyncResult[], op
   if (usable.length === 0) throw new Error(`scene ${manifest.sceneId}: no synced recordings to slice`);
 
   // syncedT = localT - offsetS, so camera c covers [-offset, duration - offset].
-  const start = Math.max(0, ...usable.map((c) => -c.offsetS));
-  const end = Math.min(...usable.map((c) => c.durationS - c.offsetS)) - END_MARGIN_S;
+  let start = Math.max(0, ...usable.map((c) => -c.offsetS));
+  let end = Math.min(...usable.map((c) => c.durationS - c.offsetS)) - END_MARGIN_S;
+  if (opts.range) {
+    const [a, b] = opts.range;
+    if (!(Number.isFinite(a) && Number.isFinite(b) && b > a)) throw new Error(`invalid range [${a}, ${b}]`);
+    start = Math.max(start, a);
+    end = Math.min(end, b);
+  }
   const t0 = Math.ceil(start / S - EPS) * S;
   const count = Math.floor((end - t0) / S + EPS);
-  if (count < 1) throw new Error(`scene ${manifest.sceneId}: cameras share less than one slice of footage`);
+  if (count < 1) {
+    throw new Error(
+      opts.range
+        ? `scene ${manifest.sceneId}: range [${opts.range.join(", ")}] has no footage shared by every camera`
+        : `scene ${manifest.sceneId}: cameras share less than one slice of footage`,
+    );
+  }
+  // A new run renumbers slices from 0: drop the old files so nothing stale (e.g. cached context clips) survives.
+  for (const c of usable) {
+    await rm(scenePath(manifest.sceneId, `slices/cam-${c.camera}`), { recursive: true, force: true });
+    await rm(scenePath(manifest.sceneId, `stills/cam-${c.camera}`), { recursive: true, force: true });
+  }
 
   const rois: Partial<Record<CameraId, Box | null>> = {};
   if (opts.roi) {

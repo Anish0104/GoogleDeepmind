@@ -10,6 +10,7 @@ import { latticeScene } from "@/lib/perception/lattice";
 import { loadManifest, writeJson } from "@/lib/store/scene";
 import { questionSet as loadQuestionSet } from "@/lib/perception/questionSets";
 import { GRID_CALIBRATION } from "@/lib/perception/gridCalibration";
+import { LIMITS } from "@/lib/config";
 
 export type PerceiveStep = "sync" | "slice" | "views" | "scout" | "lattice";
 
@@ -21,6 +22,12 @@ export interface PerceiveOptions {
    * turns calibration off. When on, raw answers are also kept in grid.raw.jsonl.
    */
   calibration?: Record<string, { a: number; b: number }> | false;
+  /**
+   * Incident window [start, end) in seconds on the synced timeline: only slices starting inside it are
+   * scored. Slices just around it are cut too, for the context clips. Times stay on the original
+   * timeline. Default: the whole recording.
+   */
+  window?: [number, number];
   /** Score only every Nth slice per camera (context clips still use every slice). Default 1. */
   sliceStride?: number;
   /**
@@ -65,6 +72,9 @@ function scoutStills(slices: Slice[]): string[] {
 }
 
 export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {}): Promise<PerceiveResult> {
+  if (opts.window && !(Number.isFinite(opts.window[0]) && Number.isFinite(opts.window[1]) && opts.window[1] > opts.window[0])) {
+    throw new Error(`invalid window [${opts.window.join(", ")}]: end must be after start`);
+  }
   const step = opts.onStep ?? (() => {});
   const manifest = await loadManifest(sceneId);
 
@@ -76,7 +86,17 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
   if (presynced) step("sync", `presynced: zero offsets for ${manifest.cameras.join(", ")} (sync.json not written)`);
   else step("sync", sync.map((s) => `${s.camera} ${s.offsetS >= 0 ? "+" : ""}${s.offsetS.toFixed(3)}s (${s.method})`).join(", "));
 
-  const slices = await sliceScene(manifest, sync, { roi: opts.roi ?? false });
+  // With a window, slice it plus the context margin (one slice before, the rest of a context clip after).
+  const earlySet = opts.questionSet ?? (manifest as { questionSet?: string }).questionSet;
+  const usesContext = (opts.contextQuestionIds ?? (earlySet ? loadQuestionSet(earlySet).motionIds : [])).length > 0;
+  const span = earlySet ? loadQuestionSet(earlySet).contextSlices : 4;
+  const S = LIMITS.SLICE_S;
+  const range: [number, number] | undefined = opts.window
+    ? usesContext
+      ? [Math.max(0, opts.window[0] - S), opts.window[1] + (span - 1) * S]
+      : opts.window
+    : undefined;
+  const slices = await sliceScene(manifest, sync, { roi: opts.roi ?? false, ...(range ? { range } : {}) });
   step("slice", `${slices.length} slices`);
 
   // views.json for the agents' menu: optional, so a failure is reported, not fatal.
@@ -120,8 +140,10 @@ export async function perceiveScene(sceneId: string, opts: PerceiveOptions = {})
   const max = opts.maxSlicesPerCamera ?? Infinity;
   const stride = Math.max(1, Math.floor(opts.sliceStride ?? 1));
   const counts = new Map<string, number>();
+  const inWindow = (t: number) => !opts.window || (t >= opts.window[0] - 1e-6 && t < opts.window[1] - 1e-6);
   const used = [...slices]
     .sort((a, b) => a.t - b.t)
+    .filter((s) => inWindow(s.t))
     .filter((s) => {
       const n = counts.get(s.camera) ?? 0; // index of this slice within its camera
       counts.set(s.camera, n + 1);
