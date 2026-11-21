@@ -5,7 +5,6 @@
 import { z } from "zod";
 import { LIMITS } from "@/lib/config";
 import type { AgentMenu, CameraId, Claim, Evidence, InspectWindowArgs, StopArgs } from "@/lib/types";
-import { notImplemented } from "@/lib/not-implemented";
 
 /** Slack for float rounding on window edges and lengths (e.g. 10.1 + 4 - 10.1 !== 4). */
 const EPS = 1e-6;
@@ -139,12 +138,16 @@ export function parseToolCall(name: string, raw: unknown): ParsedToolCall {
   return { ok: false, reason: `Unknown tool "${name}". Use inspect_window or stop.`, droppedFields: [] };
 }
 
-/** Calls Dev 1's checkWindow() and Dev 2's auditor for a validated request. */
+/**
+ * Cuts and scores one validated clip via Dev 1's checkWindow().
+ * The shared agent loop (loop.ts) calls checkWindow() and audit() via injected deps; direct callers can use this helper.
+ */
 export async function inspect(
-  _args: InspectWindowArgs,
-  _claim: Claim,
-  _sceneId: string,
-  _source: Evidence["source"],
+  args: InspectWindowArgs,
+  claim: Claim,
+  sceneId: string,
+  source: Evidence["source"],
 ): Promise<Evidence> {
-  return notImplemented("Dev 3", "inspect");
+  const { checkWindow } = await import("@/lib/perception/checkWindow");
+  return checkWindow({ sceneId, camera: args.camera_id, window: [args.start_s, args.end_s], crop: args.crop, claim, source });
 }

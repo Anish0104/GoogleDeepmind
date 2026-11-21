@@ -41,8 +41,9 @@ export interface WarehouseOptions {
 
 /** The real steps. Imported lazily so a test can run without loading the model clients. */
 async function realDeps(dataDir: string): Promise<WarehouseDeps> {
-  const [{ runAccount }, { handleAgentsRun }, { loadClaims }, { loadResults }] = await Promise.all([
+  const [{ runAccount }, { registeredExclusivePairs }, { handleAgentsRun }, { loadClaims }, { loadResults }] = await Promise.all([
     import("@/lib/truth/account"),
+    import("@/lib/truth/exclusive"),
     import("@/lib/api/handlers"),
     import("@/lib/pipeline/run"),
     import("@/lib/store/scene"),
@@ -74,7 +75,16 @@ async function realDeps(dataDir: string): Promise<WarehouseDeps> {
           });
         const manifest = (await json("manifest.json")) as SceneManifest | undefined;
         const included = (manifest?.cameras ?? []).filter((c) => !manifest!.excludedCameras.includes(c));
-        return { rows, registry: { entities: await json("entities.json"), people: await json("people.json"), questions: await json("questions.json") }, included };
+        return {
+          rows,
+          registry: {
+            entities: await json("entities.json"),
+            people: await json("people.json"),
+            questions: await json("questions.json"),
+            exclusive: registeredExclusivePairs(),
+          },
+          included,
+        };
       })();
       scenes.set(sceneId, p);
     }

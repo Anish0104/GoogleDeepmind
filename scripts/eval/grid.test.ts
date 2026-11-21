@@ -39,8 +39,14 @@ describe("gridDetail", () => {
   });
 
   it("at or above CLEAR is shown as such", () => {
-    expect(gridDetail(claim("state moving", "The forklift kept moving"), [2, 4], rows, ["A", "B", "C"], registry)).toBe(
+    expect(gridDetail(claim("state moving", "The forklift was moving"), [2, 4], rows, ["A", "B", "C"], registry)).toBe(
       "moving max 0.92 ≥ 0.8 (cam A at 3 s)",
+    );
+  });
+
+  it("persistence wording ('kept moving') reports Dev 2's persistence ungrounded reason", () => {
+    expect(gridDetail(claim("state moving", "The forklift kept moving"), [2, 4], rows, ["A", "B", "C"], registry)).toMatch(
+      /^ungrounded: claim asserts a state persisted continuously/,
     );
   });
 

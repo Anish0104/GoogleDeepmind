@@ -232,7 +232,7 @@ export const METHOD = [
   "  otherwise Supported for a true statement and Contradicted for a false one.",
   "- **Run:** each account runs on its own clone of the scene (`<sceneId>__<account>`): Dev 2's `runAccount()`",
   "  (claims → grounding → evidence → citation → audit → verdict), then our agents (`POST .../agents`).",
-  "- **Statements** are a bystander's, in the third person, one sentence each (e.g. \"The forklift hit the worker.\").",
+  "- **Statements** are a bystander's, in the third person, one atomic state sentence each (e.g. \"The forklift was touching the worker.\").",
   "- **Scoring:** each extracted claim is matched to at most one statement, on word overlap or containment (a claim",
   "  split off a statement, or the claim's object + action, inside it), negation-aware. A statement with no match",
   "  is an extraction miss; a claim with no statement is listed as an extra claim. **Critical error** = Supported on",
