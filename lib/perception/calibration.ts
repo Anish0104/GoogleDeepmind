@@ -69,7 +69,9 @@ export function accuracy(ps: Pair[]): number {
 const NEEDS: Record<string, string[]> = {
   "forklift:state:near_worker": ["worker", "forklift"],
   "forklift:state:touching_worker": ["worker", "forklift"],
+  "forklift:state:clear_of_worker": ["worker", "forklift"],
   "forklift:state:moving": ["forklift"],
+  "forklift:state:stopped": ["forklift"],
   "worker:state:dodging": ["worker"],
 };
 const VISIBLE = new Set(["worker:visible:yes", "forklift:visible:yes"]);

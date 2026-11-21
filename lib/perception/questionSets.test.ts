@@ -47,7 +47,7 @@ describe("SDG_NEARMISS_QUESTIONS (NVIDIA SDG-Warehouse forklift-human near miss)
       expect(q.id.startsWith(`${q.entityId}:${q.predicate}:`)).toBe(true);
       expect(q.text).toMatch(/\bno\b/i);
     }
-    expect(SDG_NEARMISS_MOTION_QUESTION_IDS).toEqual(["forklift:state:moving", "worker:state:dodging"]);
+    expect(SDG_NEARMISS_MOTION_QUESTION_IDS).toEqual(["forklift:state:moving", "forklift:state:stopped", "worker:state:dodging"]);
     expect(QUESTION_SETS["sdg-nearmiss"]).toBe(SDG_NEARMISS_QUESTIONS);
   });
 
@@ -81,5 +81,31 @@ describe("named question sets carry their own registry (entities, people) and mo
   it("throws on an unknown set name, listing the known ones", async () => {
     const { questionSet } = await import("@/lib/perception/questionSets");
     expect(() => questionSet("nope")).toThrow(/sdg-nearmiss/);
+  });
+});
+
+describe("QUESTION_SET_EXCLUSIVE", () => {
+  it("pairs sdg-nearmiss opposites that can never both be true", async () => {
+    const { QUESTION_SET_EXCLUSIVE } = await import("@/lib/perception/questionSets");
+    expect(QUESTION_SET_EXCLUSIVE["sdg-nearmiss"]).toEqual([
+      ["forklift:state:moving", "forklift:state:stopped"],
+      ["forklift:state:touching_worker", "forklift:state:clear_of_worker"],
+    ]);
+  });
+
+  it("only pairs questions of one set, about the same entity, asked over the same window", async () => {
+    const { QUESTION_SET_EXCLUSIVE, questionSet } = await import("@/lib/perception/questionSets");
+    for (const [name, pairs] of Object.entries(QUESTION_SET_EXCLUSIVE)) {
+      const set = questionSet(name);
+      for (const [a, b] of pairs) {
+        const qa = set.questions.find((q) => q.id === a)!;
+        const qb = set.questions.find((q) => q.id === b)!;
+        expect(qa, a).toBeDefined();
+        expect(qb, b).toBeDefined();
+        expect(qa.entityId).toBe(qb.entityId);
+        expect(qa.predicate).toBe("state");
+        expect(set.motionIds.includes(a)).toBe(set.motionIds.includes(b)); // both on the 2 s clip, or both on the slice
+      }
+    }
   });
 });

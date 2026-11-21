@@ -49,17 +49,23 @@ export const SDG_NEARMISS_QUESTIONS: Question[] = [
     "Is any part of the forklift (body, mast or forks) within about one metre, roughly an arm's length, of the worker? " +
       "Yes only if they are that close; no if there is clearly more space between them."),
   q("forklift", "state", "touching worker",
-    "Is the forklift touching the worker, with no gap between any part of the forklift and the person? " +
-      "Yes only if they are in contact; no if there is any visible gap."),
+    "Does any part of the forklift touch the worker at any moment in this slice, with no gap between them? " +
+      "Yes if they are in contact at any point; no if there is a visible gap the whole time."),
+  q("forklift", "state", "clear of worker",
+    "Is there a visible gap between the forklift and the worker for the whole of this slice, so that no part of the " +
+      "forklift touches the person at any moment? Yes only if they never touch; no if they touch at any point."),
   q("forklift", "state", "moving",
     "Does the forklift move during this clip? Yes if its position changes; no if it stays completely still."),
+  q("forklift", "state", "stopped",
+    "Does the forklift stay completely still for the whole clip? Yes only if its position does not change at all; " +
+      "no if it moves at any point."),
   q("worker", "state", "dodging",
     "Does the worker suddenly step, jump or run out of the way during this clip? " +
       "Yes only for a sudden fast movement; no if they stand still or walk calmly."),
 ];
 
 /** Motion questions for the near-miss set, asked over a ~2 s clip. */
-export const SDG_NEARMISS_MOTION_QUESTION_IDS = ["forklift:state:moving", "worker:state:dodging"];
+export const SDG_NEARMISS_MOTION_QUESTION_IDS = ["forklift:state:moving", "forklift:state:stopped", "worker:state:dodging"];
 
 export const QUESTION_SETS: Record<string, Question[]> = {
   warehouse: WAREHOUSE_QUESTIONS,
@@ -91,6 +97,18 @@ export const QUESTION_SET_PEOPLE: Record<string, Person[]> = {
 export const QUESTION_SET_MOTION_IDS: Record<string, string[]> = {
   warehouse: WAREHOUSE_MOTION_QUESTION_IDS,
   "sdg-nearmiss": SDG_NEARMISS_MOTION_QUESTION_IDS,
+};
+
+/**
+ * Pairs of state questions that can never both be true: same entity, same window (both on the 0.5 s
+ * slice or both on the 2 s clip), and each is the other's exact negation. Dev 2's evidence may treat
+ * one as the alternative of the other, so a state claim can be contradicted.
+ */
+export const QUESTION_SET_EXCLUSIVE: Record<string, [string, string][]> = {
+  "sdg-nearmiss": [
+    ["forklift:state:moving", "forklift:state:stopped"],
+    ["forklift:state:touching_worker", "forklift:state:clear_of_worker"],
+  ],
 };
 
 export interface QuestionSet {
