@@ -115,6 +115,9 @@ export interface ClaimResult {
 // ---------- agents ----------
 export type AgentName = "investigator" | "skeptic";
 
+/** Which turn function actually ran: the Gemini Managed Agent, the stand-in, or the stand-in after a managed failure. */
+export type AgentMode = "managed" | "standin" | "standin-fallback";
+
 export interface AgentMenu {
   agent: AgentName;
   claim: Claim;
@@ -148,6 +151,8 @@ export interface AgentStep {
   args: InspectWindowArgs | StopArgs;
   rejectionReason?: string;
   droppedFields?: string[]; // unknown fields the bridge stripped from the agent's tool call
+  implicitStop?: boolean; // the agent finished without calling stop; the loop recorded a stop for it
+  mode?: AgentMode; // which turn function ran this step
   result?: Evidence;
   tokens: number;
   costUsd: number;
@@ -172,5 +177,6 @@ export interface CostRecord {
   inputTokens: number;
   outputTokens: number;
   usd: number;
+  cachedTokens?: number; // part of inputTokens served from cache (tracked separately)
   sceneId?: string;
 }

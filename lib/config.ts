@@ -35,6 +35,8 @@ export const LIMITS = {
   CLIP_MAX_S: 4,
   AGENT_MAX_CHECKS: 2,
   AGENT_MAX_TOTAL_TOKENS: num(process.env.AGENT_MAX_TOTAL_TOKENS, 60_000),
+  /** Longest a managed-agent turn may stay in_progress (polling) before it counts as model_unavailable. */
+  AGENT_TURN_TIMEOUT_MS: num(process.env.AGENT_TURN_TIMEOUT_MS, 30_000),
   BUDGET_HARD_STOP_USD: num(process.env.BUDGET_HARD_STOP_USD, 8),
   MAX_CONCURRENT_CALLS: num(process.env.MAX_CONCURRENT_CALLS, 2),
   CARBON_TIMEOUT_MS: 6_000,

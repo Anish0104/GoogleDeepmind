@@ -1,11 +1,11 @@
 // OWNER: Dev 3. Tests for the cost meter. Each test writes its own temp cost log.
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LIMITS } from "@/lib/config";
 import type { CostRecord } from "@/lib/types";
-import { assertBudget, BudgetExceededError, costStatus } from "@/lib/cost";
+import { assertBudget, BudgetExceededError, costStatus, recordCost } from "@/lib/cost";
 
 let dir: string;
 let log: string;
@@ -89,6 +89,17 @@ describe("costStatus", () => {
   it("is not blocked just under the hard stop", async () => {
     await writeFile(log, jsonl(rec(LIMITS.BUDGET_HARD_STOP_USD - 0.01)));
     expect((await costStatus(log)).blocked).toBe(false);
+  });
+});
+
+describe("recordCost", () => {
+  it("creates the log folder, appends one line per record, and costStatus() sums them", async () => {
+    const nested = path.join(dir, "logs", "costs.jsonl");
+    await recordCost(rec(0.25, { cachedTokens: 40 }), nested);
+    await recordCost(rec(0.5), nested);
+    const lines = (await readFile(nested, "utf8")).trim().split("\n").map((l) => JSON.parse(l) as CostRecord);
+    expect(lines).toEqual([rec(0.25, { cachedTokens: 40 }), rec(0.5)]);
+    expect((await costStatus(nested)).spentUsd).toBe(0.75);
   });
 });
 

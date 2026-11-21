@@ -91,6 +91,8 @@ const AgentStepS = z.strictObject({
   args: z.union([InspectWindowArgsSchema.strict(), StopArgsSchema.strict()]),
   rejectionReason: z.string().optional(),
   droppedFields: z.array(z.string()).optional(),
+  implicitStop: z.boolean().optional(),
+  mode: z.enum(["managed", "standin", "standin-fallback"]).optional(),
   result: EvidenceS.optional(),
   tokens: z.number().int().nonnegative(),
   costUsd: z.number().nonnegative(),

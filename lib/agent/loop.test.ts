@@ -377,6 +377,41 @@ describe("runAgent", () => {
     expect(out.result.evidence.map((e) => e.camera)).toEqual(["D", "A", "B", "C"]); // stored evidence is kept
   });
 
+  it("stamps every step and the run with deps.mode", async () => {
+    const { run } = setup({ script: [inspect("B", 10, 12), stop()], overrides: { mode: "managed" } });
+    const out = await run();
+    expect(out.mode).toBe("managed");
+    expect(out.steps.map((s) => s.mode)).toEqual(["managed", "managed"]);
+  });
+
+  it("leaves mode off steps when deps.mode is not set", async () => {
+    const { run } = setup({ script: [stop()] });
+    const out = await run();
+    expect(out.mode).toBeUndefined();
+    expect(out.steps[0]).not.toHaveProperty("mode");
+  });
+
+  it("records an implicit stop from the turn as a stop step marked implicitStop", async () => {
+    const { run } = setup({
+      script: [],
+      overrides: {
+        turn: async () => ({
+          name: "stop",
+          args: { reason: "Camera B shows the mug in zone C." },
+          implicitStop: true,
+          tokens: 10,
+          costUsd: 0,
+          latencyMs: 1,
+        }),
+      },
+    });
+    const out = await run();
+    expect(out.stopReason).toBe("agent");
+    expect(out.steps).toEqual([
+      expect.objectContaining({ action: "stop", implicitStop: true, args: { reason: "Camera B shows the mug in zone C." } }),
+    ]);
+  });
+
   it("passes only the menu and its own steps to the agent", async () => {
     const { run, turnInputs } = setup({ script: [stop()] });
     await run();
