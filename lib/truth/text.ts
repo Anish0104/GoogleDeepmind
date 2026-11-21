@@ -113,3 +113,19 @@ export const assertsCause = (s: string) => CAUSAL.test(normText(s));
 export const overclaims = (s: string) => CERTAIN.test(normText(s));
 export const isHedged = (s: string) => HEDGE.test(normText(s));
 export const isQuestion = (s: string) => s.trim().endsWith("?");
+
+/** Word-level negation ("never", "not", "didn't", "nobody", "without", ...). Matches whole words only. */
+const NEGATION = /\b(?:never|not|no|nobody|none|nothing|without|neither|nor|cannot)\b|n['’]t\b/i;
+export const isNegated = (s: string) => NEGATION.test(s);
+
+/** A temporal order between events ("stopped before reaching the worker", "until", "by the time"). */
+const ORDERING = /\b(?:before|until|till|by the time|prior to|earlier than|later than)\b/i;
+export const isTemporallyOrdered = (s: string) => ORDERING.test(s);
+
+/**
+ * Persistence: the state is asserted to have held continuously ("stayed clear", "remained stopped
+ * throughout", "the whole time", "always", "all along"). Whole words only.
+ */
+const PERSISTENCE =
+  /\b(?:stay|stays|stayed|staying|remain|remains|remained|remaining|keep|keeps|kept|keeping|throughout|always|all along|continuously|constantly|the whole (?:time|way|while)|the entire (?:time|way|while)|all the time|at all times)\b/i;
+export const isPersistent = (s: string) => PERSISTENCE.test(s);

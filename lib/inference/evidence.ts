@@ -116,11 +116,18 @@ const clipRef = gridClipId;
 
 /**
  * An explicitly resolved target: the claimed question and the questions that are mutually exclusive
- * with it (other zones of a location, other holders). State targets take no alternatives.
+ * with it (other zones of a location, other holders). State targets take no alternatives unless they
+ * are a registered exclusive pair (see registeredExclusive).
  */
 export interface EvidenceTarget {
   questionId: string;
   alternativeIds: readonly string[];
+  /**
+   * State values are not exclusive in general, so a state target may carry alternatives ONLY when they
+   * come from Dev 1's explicitly registered exclusive pairs (e.g. touching_worker <-> clear_of_worker),
+   * validated against the scene (lib/truth/exclusive.ts). Unflagged state alternatives are rejected.
+   */
+  registeredExclusive?: true;
 }
 
 interface Slice {
@@ -228,13 +235,14 @@ function sliceSeries(claim: Claim, cells: GridCell[], claimedId: string, altIds:
 /**
  * Checks a target against the scene's questions. Valid only if the question exists and is not a
  * "visible" question, and every alternative exists, is distinct, differs from the target, and shares
- * its entity and predicate; state targets (not known to be exclusive) must have no alternatives.
+ * its entity and predicate. State values are not exclusive in general, so a state target may carry
+ * alternatives only when flagged registeredExclusive (Dev 1's registered pairs, validated by Dev 2).
  */
 function resolveTarget(target: EvidenceTarget | null, qById: Map<string, Question>): { claimedId: string; altIds: Set<string> } | null {
   if (!target || typeof target.questionId !== "string" || !Array.isArray(target.alternativeIds)) return null;
   const q = qById.get(target.questionId);
   if (!q || q.predicate === "visible") return null;
-  const exclusive = q.predicate === "location" || q.predicate === "heldBy";
+  const exclusive = q.predicate === "location" || q.predicate === "heldBy" || (q.predicate === "state" && target.registeredExclusive === true);
   if (!exclusive && target.alternativeIds.length > 0) return null;
   const altIds = new Set<string>();
   for (const id of target.alternativeIds) {
