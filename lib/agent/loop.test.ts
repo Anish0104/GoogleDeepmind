@@ -294,16 +294,61 @@ describe("runAgent", () => {
     await expect(run()).rejects.toThrow("EACCES");
   });
 
-  it("a failing turn stops cleanly and still saves", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("a model error after retries stops cleanly, keeps the current result and saves it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let calls = 0;
     const { deps, run } = setup({
       script: [],
-      overrides: { turn: async () => Promise.reject(new Error("429 rate limited")) },
+      overrides: {
+        // First turn works (a valid check), second turn: the model is still unavailable after retries.
+        turn: async () => {
+          calls++;
+          if (calls === 1) {
+            return { ...inspect("B", 10, 12), tokens: 50, costUsd: 0.01, latencyMs: 5 };
+          }
+          throw Object.assign(new Error("503 Service Unavailable: model overloaded"), { status: 503 });
+        },
+      },
+    });
+    const out = await run(); // must not throw
+
+    expect(out.stopReason).toBe("model_unavailable");
+    expect(out.steps.map((s) => s.action)).toEqual(["inspect_window", "rejected"]);
+    expect(out.steps[1]).toEqual({
+      agent: "investigator",
+      claimId: "c1",
+      n: 2,
+      action: "rejected",
+      args: { reason: "model unavailable: 503 Service Unavailable: model overloaded" },
+      rejectionReason: "model unavailable: 503 Service Unavailable: model overloaded",
+      tokens: 0,
+      costUsd: 0,
+      latencyMs: 0,
+    });
+    // The result from the first, successful check is kept and saved.
+    expect(out.result.verdict).toBe("Supported");
+    expect(out.result.evidence).toHaveLength(1);
+    expect(deps.saveResult).toHaveBeenCalledExactlyOnceWith("s1", out.result);
+    expect(deps.logStep.mock.calls.map((c) => c[1])).toEqual(out.steps);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/model unavailable/));
+    warn.mockRestore();
+  });
+
+  it("a model error on the first turn saves the starting result unchanged", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const start = startResult("Contradicted", [initialEvidence]);
+    const { deps, run } = setup({
+      start,
+      script: [],
+      overrides: { turn: async () => Promise.reject("non-Error rejection") },
     });
     const out = await run();
-    expect(out.stopReason).toBe("error");
-    expect(out.steps).toEqual([expect.objectContaining({ action: "stop", args: { reason: expect.stringMatching(/429/) } })]);
-    expect(deps.saveResult).toHaveBeenCalledTimes(1);
+    expect(out.stopReason).toBe("model_unavailable");
+    expect(out.steps).toEqual([
+      expect.objectContaining({ action: "rejected", rejectionReason: "model unavailable: non-Error rejection" }),
+    ]);
+    expect(out.result).toEqual(start);
+    expect(deps.saveResult).toHaveBeenCalledExactlyOnceWith("s1", start);
     vi.restoreAllMocks();
   });
 

@@ -2,7 +2,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { FunctionCallingConfigMode, Type, type GenerateContentParameters } from "@google/genai";
+import { ApiError, FunctionCallingConfigMode, Type, type GenerateContentParameters } from "@google/genai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MODELS } from "@/lib/config";
 import { InspectWindowArgsSchema, StopArgsSchema } from "@/lib/agent/bridge";
@@ -17,6 +17,7 @@ const ENV_KEYS = [
   "STANDIN_PRICE_IN",
   "STANDIN_PRICE_OUT",
   "GEMINI_API_KEY",
+  "MODEL_RETRY_DELAYS_MS",
 ] as const;
 const saved: Partial<Record<(typeof ENV_KEYS)[number], string>> = {};
 
@@ -216,5 +217,131 @@ describe("createGenaiModel", () => {
 
   it("needs GEMINI_API_KEY when no client is injected", () => {
     expect(() => mod.createGenaiModel({ logPath: log })).toThrow(/GEMINI_API_KEY/);
+  });
+});
+
+describe("isRetryable", () => {
+  it("retries 429 and 503 only", () => {
+    expect(mod.isRetryable(new ApiError({ message: "rate limited", status: 429 }))).toBe(true);
+    expect(mod.isRetryable(new ApiError({ message: "unavailable", status: 503 }))).toBe(true);
+    expect(mod.isRetryable(Object.assign(new Error("x"), { status: 503 }))).toBe(true);
+    expect(mod.isRetryable(new ApiError({ message: "bad request", status: 400 }))).toBe(false);
+    expect(mod.isRetryable(new ApiError({ message: "server error", status: 500 }))).toBe(false);
+    expect(mod.isRetryable(new TypeError("fetch failed"))).toBe(false);
+    expect(mod.isRetryable("503")).toBe(false);
+    expect(mod.isRetryable(null)).toBe(false);
+  });
+});
+
+describe("retryDelaysMs", () => {
+  it("defaults to 1000,2000,4000 when unset or empty", () => {
+    expect(mod.retryDelaysMs()).toEqual([1000, 2000, 4000]);
+    process.env.MODEL_RETRY_DELAYS_MS = "  ";
+    expect(mod.retryDelaysMs()).toEqual([1000, 2000, 4000]);
+  });
+
+  it("parses a comma-separated list, read at call time", () => {
+    process.env.MODEL_RETRY_DELAYS_MS = "500,1000";
+    expect(mod.retryDelaysMs()).toEqual([500, 1000]);
+    process.env.MODEL_RETRY_DELAYS_MS = " 250 , 0 ";
+    expect(mod.retryDelaysMs()).toEqual([250, 0]);
+  });
+
+  it.each(["abc", "500,-1", "500,,1000", "1.5", "500;1000", "1e3"])(
+    "falls back to the default with one warning for %j",
+    (bad) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      process.env.MODEL_RETRY_DELAYS_MS = bad;
+      expect(mod.retryDelaysMs()).toEqual([1000, 2000, 4000]);
+      expect(mod.retryDelaysMs()).toEqual([1000, 2000, 4000]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toMatch(/MODEL_RETRY_DELAYS_MS/);
+    },
+  );
+});
+
+describe("withRetry", () => {
+  const sleeps: number[] = [];
+  const sleep = async (ms: number) => {
+    sleeps.push(ms);
+  };
+  beforeEach(() => {
+    sleeps.length = 0;
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("retries once per configured delay with that backoff, then throws the last error", async () => {
+    const delays = mod.retryDelaysMs(); // default: 1000,2000,4000
+    const fn = vi.fn(async () => {
+      throw new ApiError({ message: `unavailable #${fn.mock.calls.length}`, status: 503 });
+    });
+    await expect(mod.withRetry(fn, { sleep })).rejects.toThrow(`unavailable #${delays.length + 1}`);
+    expect(fn).toHaveBeenCalledTimes(delays.length + 1);
+    expect(sleeps).toEqual(delays);
+  });
+
+  it("uses MODEL_RETRY_DELAYS_MS (demo setting 500,1000: two retries)", async () => {
+    process.env.MODEL_RETRY_DELAYS_MS = "500,1000";
+    const fn = vi.fn(async () => {
+      throw new ApiError({ message: "overloaded", status: 503 });
+    });
+    await expect(mod.withRetry(fn, { sleep })).rejects.toThrow("overloaded");
+    expect(fn).toHaveBeenCalledTimes(3);
+    expect(sleeps).toEqual([500, 1000]);
+  });
+
+  it("returns as soon as a retry succeeds", async () => {
+    const delays = mod.retryDelaysMs();
+    let n = 0;
+    const fn = vi.fn(async () => {
+      if (++n <= 2) throw new ApiError({ message: "rate limited", status: 429 });
+      return "ok";
+    });
+    expect(await mod.withRetry(fn, { sleep })).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(3);
+    expect(sleeps).toEqual(delays.slice(0, 2));
+  });
+
+  it("does not retry other errors", async () => {
+    const fn = vi.fn(async () => {
+      throw new ApiError({ message: "bad request", status: 400 });
+    });
+    await expect(mod.withRetry(fn, { sleep })).rejects.toThrow("bad request");
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(sleeps).toEqual([]);
+  });
+});
+
+describe("createGenaiModel retries", () => {
+  it("retries a 429 then succeeds, logging cost once", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sleeps: number[] = [];
+    let n = 0;
+    const client = {
+      generateContent: vi.fn(async () => {
+        if (++n === 1) throw new ApiError({ message: "rate limited", status: 429 });
+        return { functionCalls: [{ name: "stop", args: { reason: "done" } }], usageMetadata: usage };
+      }),
+    };
+    const reply = await mod
+      .createGenaiModel({ client, logPath: log, sleep: async (ms) => void sleeps.push(ms) })
+      .generate(req);
+    expect(reply.call).toEqual({ name: "stop", args: { reason: "done" } });
+    expect(client.generateContent).toHaveBeenCalledTimes(2);
+    expect(sleeps).toEqual(mod.retryDelaysMs().slice(0, 1));
+    expect(await readLog()).toHaveLength(1);
+  });
+
+  it("throws after the configured retries of 503 and logs no cost", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = {
+      generateContent: vi.fn(async () => {
+        throw new ApiError({ message: "overloaded", status: 503 });
+      }),
+    };
+    const model = mod.createGenaiModel({ client, logPath: log, sleep: async () => {} });
+    await expect(model.generate(req)).rejects.toThrow("overloaded");
+    expect(client.generateContent).toHaveBeenCalledTimes(mod.retryDelaysMs().length + 1);
+    await expect(readFile(log, "utf8")).rejects.toThrow(/ENOENT/);
   });
 });

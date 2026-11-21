@@ -25,10 +25,10 @@ import { logStep } from "@/lib/agent/log";
 import { buildMenu, consume } from "@/lib/agent/menu";
 
 /**
- * Why the loop ended: the agent called stop, follow-ups ran out, the budget hit, a turn failed,
- * or the safety guard caught a Skeptic result that was not a downgrade.
+ * Why the loop ended: the agent called stop, follow-ups ran out, the budget hit, the model was still
+ * unavailable after retries, or the safety guard caught a Skeptic result that was not a downgrade.
  */
-export type StopReason = "agent" | "no_follow_ups" | "budget" | "error" | "safety_guard";
+export type StopReason = "agent" | "no_follow_ups" | "budget" | "model_unavailable" | "safety_guard";
 
 export const SAFETY_GUARD_REASON = "safety guard: Skeptic result was not a downgrade";
 
@@ -88,7 +88,7 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /**
  * Runs one agent on one claim until it stops, follow-ups run out (forced stop), the budget is hit,
  * or a turn fails. Every step is logged to agent-steps.jsonl and the final result is saved.
- * Never throws for a budget stop or a failed turn; rethrows other assertBudget() errors.
+ * Never throws for a budget stop or a model error (turn failed after retries); rethrows other assertBudget() errors.
  */
 export async function runAgent(
   agent: AgentName,
@@ -132,9 +132,11 @@ export async function runAgent(
     try {
       out = await d.turn({ agent, menu, history: [...steps] });
     } catch (e) {
-      console.warn(`[agent] ${agent} on ${claim.id}: turn failed: ${errMsg(e)}`);
-      stopReason = "error";
-      await systemStop(`Stopped: agent turn failed: ${errMsg(e)}`);
+      // Model errors never escape the loop: keep the current result, record why, stop, save below.
+      const reason = `model unavailable: ${errMsg(e)}`;
+      console.warn(`[agent] ${agent} on ${claim.id}: ${reason}`);
+      stopReason = "model_unavailable";
+      await record({ action: "rejected", args: { reason }, rejectionReason: reason, tokens: 0, costUsd: 0, latencyMs: 0 });
       break;
     }
     const usage = { tokens: out.tokens, costUsd: out.costUsd, latencyMs: out.latencyMs };

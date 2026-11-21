@@ -4,6 +4,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import {
+  ApiError,
   FunctionCallingConfigMode,
   GoogleGenAI,
   Type,
@@ -93,6 +94,67 @@ export async function appendCostRecord(record: CostRecord, logPath: string = COS
   await appendFile(file, JSON.stringify(record) + "\n", "utf8");
 }
 
+// ---------- retries ----------
+
+// The SDK's own retry is off (we never set httpOptions.retryOptions), so these are the only retries.
+const DEFAULT_RETRY_DELAYS = "1000,2000,4000";
+let warnedBadDelays = false;
+
+const parseDelays = (v: string): number[] | null => {
+  const parts = v.split(",").map((p) => p.trim());
+  return parts.every((p) => /^\d+$/.test(p)) ? parts.map(Number) : null;
+};
+
+/**
+ * Backoff before each retry, from MODEL_RETRY_DELAYS_MS (comma-separated ms; one retry per entry).
+ * Default 1000,2000,4000. An invalid value falls back to the default with one warning. Read at call time.
+ */
+export function retryDelaysMs(): number[] {
+  const raw = process.env.MODEL_RETRY_DELAYS_MS;
+  if (raw === undefined || raw.trim() === "") return parseDelays(DEFAULT_RETRY_DELAYS)!;
+  const parsed = parseDelays(raw);
+  if (parsed) return parsed;
+  if (!warnedBadDelays) {
+    warnedBadDelays = true;
+    console.warn(
+      `[standin] MODEL_RETRY_DELAYS_MS=${JSON.stringify(raw)} is not a comma-separated list of whole ` +
+        `milliseconds; using ${DEFAULT_RETRY_DELAYS}.`,
+    );
+  }
+  return parseDelays(DEFAULT_RETRY_DELAYS)!;
+}
+const RETRYABLE_STATUS = new Set([429, 503]);
+
+/** True for HTTP 429 (rate limited) and 503 (unavailable): an ApiError or any error with that status. */
+export function isRetryable(e: unknown): boolean {
+  if (e instanceof ApiError) return RETRYABLE_STATUS.has(e.status);
+  if (typeof e !== "object" || e === null) return false;
+  const status = (e as { status?: unknown }).status;
+  return typeof status === "number" && RETRYABLE_STATUS.has(status);
+}
+
+const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Runs fn, retrying 429/503 after each delay in turn (retryDelaysMs() by default). Rethrows the last error. */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  opts: { sleep?: (ms: number) => Promise<void>; delaysMs?: readonly number[] } = {},
+): Promise<T> {
+  const sleep = opts.sleep ?? realSleep;
+  const delays = opts.delaysMs ?? retryDelaysMs();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const delay = delays[attempt];
+      if (delay === undefined || !isRetryable(e)) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[standin] ${msg}: retry ${attempt + 1}/${delays.length} in ${delay} ms`);
+      await sleep(delay);
+    }
+  }
+}
+
 // ---------- adapter ----------
 
 /** The part of GoogleGenAI.models this adapter uses; tests inject a fake. */
@@ -114,6 +176,8 @@ export interface GenaiModelOptions {
   model?: string;
   logPath?: string;
   now?: () => Date;
+  /** Backoff sleep; tests pass a fake so nothing waits. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /** A StandinModel backed by @google/genai. Each generate() is one API call, logged to the cost log. */
@@ -130,6 +194,7 @@ export function createGenaiModel(opts: GenaiModelOptions = {}): StandinModel {
   return {
     async generate(req: ModelRequest): Promise<ModelReply> {
       const model = opts.model ?? standinModelName();
+      // Retries 429/503 per MODEL_RETRY_DELAYS_MS; a call that still fails throws to the loop, which stops cleanly.
       const params: GenerateContentParameters = {
         model,
         contents: req.userText,
@@ -141,7 +206,7 @@ export function createGenaiModel(opts: GenaiModelOptions = {}): StandinModel {
           },
         },
       };
-      const res = await api.generateContent(params);
+      const res = await withRetry(() => api.generateContent(params), { sleep: opts.sleep });
 
       const u = res.usageMetadata;
       const inputTokens = u?.promptTokenCount ?? 0;
