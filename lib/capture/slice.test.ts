@@ -1,6 +1,6 @@
 // OWNER: Dev 1.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { SceneManifest, SyncResult } from "@/lib/types";
@@ -62,6 +62,27 @@ describe.skipIf(!HAS_FFMPEG)("sliceScene", { timeout: 60_000 }, () => {
       expect(await brightness(at(2))).toBeGreaterThan(200);
       expect(await brightness(at(1.5))).toBeLessThan(120);
     }
+  }, 60_000);
+
+  it("with range, slices only that part of the synced timeline and keeps original times", async () => {
+    const slices = await sliceScene(manifest, sync, { range: [1.2, 3.1] });
+    // slices start on the 0.5 s grid inside the range: 1.5, 2.0, 2.5 (3.0 would end past 3.1)
+    expect(slices.filter((s) => s.camera === "A").map((s) => s.t)).toEqual([1.5, 2, 2.5]);
+    // still the same footage at the same time: the flash is in the 2.0 slice
+    expect(await brightness(slices.find((s) => s.camera === "B" && s.t === 2)!.stillPath)).toBeGreaterThan(200);
+  }, 60_000);
+
+  it("clears slices from an earlier run, so no stale file outlives a new range", async () => {
+    await sliceScene(manifest, sync);
+    const fewer = await sliceScene(manifest, sync, { range: [0, 1] });
+    const dir = path.join(dataDir, "scenes", "sl1", "slices", "cam-A");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".mp4"));
+    expect(files).toHaveLength(fewer.filter((s) => s.camera === "A").length);
+  }, 60_000);
+
+  it("rejects a range outside the recordings", async () => {
+    await expect(sliceScene(manifest, sync, { range: [20, 30] })).rejects.toThrow(/range/);
+    await expect(sliceScene(manifest, sync, { range: [3, 2] })).rejects.toThrow(/range/);
   }, 60_000);
 
   it("with roi, writes roi.json for every sliced camera and still slices them", async () => {

@@ -135,6 +135,25 @@ describe.skipIf(!HAS_FFMPEG)("perceiveScene", { timeout: 60_000 }, () => {
     expect(cal.pYes).toBeGreaterThan(0.9); // logit(0.7) + 2
   }, 120_000);
 
+  it("with window, scores only slices inside it, on the original timeline, with context slices around it", async () => {
+    const seen = new Set<number>();
+    const res = await perceiveScene("pre1", {
+      presynced: true,
+      questionSet: "sdg-nearmiss", // 4 s context clips: 0.5 s before, 3.5 s after
+      window: [1, 2.5],
+      onRows: (rows) => rows.forEach((r) => seen.add(r.t)),
+    });
+    expect([...seen].sort()).toEqual([1, 1.5, 2]);
+    expect(res.slicesUsed).toBe(3 * 2);
+    const sliced = JSON.parse(readFileSync(path.join(dataDir, "scenes", "pre1", "slices.json"), "utf8")).map((s: { t: number }) => s.t);
+    expect(Math.min(...sliced)).toBe(0.5); // one context slice before the window
+    expect(Math.max(...sliced)).toBeGreaterThan(2.5); // context slices after it
+  }, 120_000);
+
+  it("rejects an empty or reversed window", async () => {
+    await expect(perceiveScene("pre1", { presynced: true, window: [3, 3] })).rejects.toThrow(/window/);
+  });
+
   it("skips sync for presynced footage: zero offsets, no sync.json", async () => {
     const onStep = vi.fn();
     const res = await perceiveScene("pre1", { maxSlicesPerCamera: 1, presynced: true, onStep });
