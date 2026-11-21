@@ -24,8 +24,13 @@ import { parseToolCall, validate } from "@/lib/agent/bridge";
 import { logStep } from "@/lib/agent/log";
 import { buildMenu, consume } from "@/lib/agent/menu";
 
-/** Why the loop ended: the agent called stop, follow-ups ran out, the budget hit, or a turn failed. */
-export type StopReason = "agent" | "no_follow_ups" | "budget" | "error";
+/**
+ * Why the loop ended: the agent called stop, follow-ups ran out, the budget hit, a turn failed,
+ * or the safety guard caught a Skeptic result that was not a downgrade.
+ */
+export type StopReason = "agent" | "no_follow_ups" | "budget" | "error" | "safety_guard";
+
+export const SAFETY_GUARD_REASON = "safety guard: Skeptic result was not a downgrade";
 
 export interface AgentRun {
   result: ClaimResult;
@@ -188,7 +193,22 @@ export async function runAgent(
       continue;
     }
 
-    result = applyEvidence(agent, claim, result, evidence, cited, call.args, d);
+    const applied = applyEvidence(agent, claim, result, evidence, cited, call.args, d);
+    if (!applied.ok) {
+      // Fail safe: keep the last consistent result (from before this step), record the breach, stop.
+      console.error(`[agent] ${SAFETY_GUARD_REASON}: ${applied.detail}`);
+      stopReason = "safety_guard";
+      await record({
+        action: "rejected",
+        args: call.args,
+        rejectionReason: SAFETY_GUARD_REASON,
+        result: evidence,
+        droppedFields,
+        ...usage,
+      });
+      break;
+    }
+    result = applied.result;
     menu = { ...consume(menu, call.args, evidence), currentVerdict: result.verdict };
     await record({ action: "inspect_window", args: call.args, result: evidence, droppedFields, ...usage });
   }
@@ -197,11 +217,14 @@ export async function runAgent(
   return { result, steps, stopReason };
 }
 
+type Applied = { ok: true; result: ClaimResult } | { ok: false; detail: string };
+
 /**
  * Adds the evidence, recomputes the label with verdict(), and records any attempted change.
  * Investigator: the new label applies and the loop writes the LabelChange.
  * Skeptic: enforceDowngradeOnly()'s ClaimResult is taken as is, including the history entry it writes
- * (blocked or not); the loop adds no second entry.
+ * (blocked or not); the loop adds no second entry. If it ever returns anything but the old label or
+ * Insufficient, returns ok: false so the loop can stop without saving it.
  */
 function applyEvidence(
   agent: AgentName,
@@ -211,23 +234,24 @@ function applyEvidence(
   cited: Audit,
   args: InspectWindowArgs,
   d: AgentDeps,
-): ClaimResult {
+): Applied {
   const withEvidence: ClaimResult = { ...prev, evidence: [...prev.evidence, evidence], audit: cited };
   const next = d.verdict(withEvidence.evidence, claim, cited);
-  if (next === prev.verdict) return withEvidence;
+  if (next === prev.verdict) return { ok: true, result: withEvidence };
 
   const reason = `${args.reason} (clip ${evidence.clipId})`;
   if (agent === "skeptic") {
     const guarded = d.enforceDowngradeOnly(withEvidence, next, reason);
-    // Contract check, not a label decision: the Skeptic may only keep the label or downgrade to Insufficient.
+    // Invariant check, not a label decision: the Skeptic may only keep the label or downgrade to Insufficient.
     if (guarded.verdict !== prev.verdict && guarded.verdict !== "Insufficient") {
-      throw new Error(
-        `enforceDowngradeOnly() let the Skeptic change ${prev.verdict} to ${guarded.verdict} on claim ${claim.id}.`,
-      );
+      return {
+        ok: false,
+        detail: `enforceDowngradeOnly() returned ${guarded.verdict} for ${prev.verdict} -> ${next} on claim ${claim.id}.`,
+      };
     }
-    return guarded;
+    return { ok: true, result: guarded };
   }
 
   const change: LabelChange = { from: prev.verdict, to: next, by: agent, reason, at: d.now().toISOString() };
-  return { ...withEvidence, verdict: next, history: [...prev.history, change] };
+  return { ok: true, result: { ...withEvidence, verdict: next, history: [...prev.history, change] } };
 }

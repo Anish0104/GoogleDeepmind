@@ -424,15 +424,36 @@ describe("runAgent", () => {
       expect(out.result.history[2]?.blocked).toBeUndefined();
     });
 
-    it("throws if enforceDowngradeOnly() ever lets a label go up", async () => {
+    it("safety guard: a non-downgrade from enforceDowngradeOnly() stops the run and keeps the last result", async () => {
+      const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+      const earlier = { from: "Insufficient", to: "Supported", by: "investigator", reason: "r", at: "t0" } as const;
+      const before: ClaimResult = { ...startResult("Insufficient", [initialEvidence]), history: [earlier] };
       const { deps, run } = setup({
         agent: "skeptic",
-        start: startResult("Insufficient"),
-        script: [inspect("B", 10, 12), stop()],
+        start: before,
+        script: [inspect("B", 10, 12), inspect("C", 10, 12)],
+        scores: { B: { visible: 0.95, supports: 0.95, contradicts: 0.01 } },
+        // Broken guard: lets the label go up and writes no blocked entry.
         overrides: { enforceDowngradeOnly: (prev, next) => ({ ...prev, verdict: next }) },
       });
-      await expect(run()).rejects.toThrow(/enforceDowngradeOnly\(\) let the Skeptic change Insufficient to Supported/);
-      expect(deps.saveResult).not.toHaveBeenCalled(); // a wrong label is never saved
+      const out = await run(); // must not throw
+
+      expect(out.stopReason).toBe("safety_guard");
+      // Label, history and evidence are exactly as before the step.
+      expect(out.result).toEqual(before);
+      expect(deps.saveResult).toHaveBeenCalledExactlyOnceWith("s1", before);
+
+      expect(deps.turn).toHaveBeenCalledTimes(1); // the run stopped; no second turn
+      expect(out.steps).toHaveLength(1);
+      expect(out.steps[0]).toMatchObject({
+        action: "rejected",
+        args: { camera_id: "B", start_s: 10, end_s: 12 },
+        rejectionReason: "safety guard: Skeptic result was not a downgrade",
+      });
+      expect(deps.logStep.mock.calls.map((c) => c[1])).toEqual(out.steps);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(String(errorLog.mock.calls[0]?.[0])).toMatch(/safety guard.*Insufficient -> Supported/);
+      errorLog.mockRestore();
     });
 
     it("no history entry when the label does not change", async () => {
