@@ -33,7 +33,7 @@ const SAMPLE = {
 };
 
 const BASELINES = [
-  { label: "VERA Consensus Engine", rate: 0.018, color: "#30D158", sub: "Multi-angle physical & temporal consensus" },
+  { label: "PRISM Consensus Engine", rate: 0.018, color: "#30D158", sub: "Multi-angle physical & temporal consensus" },
   { label: "Direct Multi-Camera", rate: 0.036, color: "#86868B", sub: "Unassisted multi-view geometric projection" },
   { label: "Monocular Vision Model", rate: 0.143, color: "#FF453A", sub: "Standard single-camera foundation VLM" },
 ];

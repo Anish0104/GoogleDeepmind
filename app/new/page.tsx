@@ -3,7 +3,7 @@
 import type { Metadata } from "next";
 import { NewInvestigation } from "@/components/investigation/NewInvestigation";
 
-export const metadata: Metadata = { title: "New Investigation · RASHOMON" };
+export const metadata: Metadata = { title: "New Investigation · PRISM" };
 
 export default function NewInvestigationPage() {
   return (

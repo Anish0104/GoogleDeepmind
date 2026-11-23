@@ -108,7 +108,7 @@ export function Nav() {
           {/* Brand Lockup */}
           <Link
             href="/"
-            aria-label="VERA home"
+            aria-label="PRISM home"
             style={{
               display: "flex",
               alignItems: "center",
@@ -143,7 +143,7 @@ export function Nav() {
                 letterSpacing: "-0.01em",
               }}
             >
-              VERA
+              PRISM
             </span>
           </Link>
 
