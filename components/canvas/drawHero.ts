@@ -76,12 +76,12 @@ export function drawConvergence(
   inp: HeroInput,
 ): void {
   const isLight = inp.theme === "light";
-  ctx.fillStyle = isLight ? "#F8F9FA" : "#08090B";
+  ctx.fillStyle = isLight ? "#F5F5F7" : "#000000";
   ctx.fillRect(0, 0, w, h);
   const ox = w > 900 ? w * 0.64 : w * 0.5;
   const g = ctx.createRadialGradient(ox, h * 0.48, 0, ox, h * 0.48, Math.max(w, h) * 0.6);
-  g.addColorStop(0, isLight ? "rgba(16,185,129,0.06)" : "rgba(16,185,129,0.08)");
-  g.addColorStop(1, isLight ? "rgba(248,249,250,0)" : "rgba(8,9,11,0)");
+  g.addColorStop(0, isLight ? "rgba(48,209,88,0.06)" : "rgba(48,209,88,0.08)");
+  g.addColorStop(1, isLight ? "rgba(245,245,247,0)" : "rgba(0,0,0,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
@@ -247,7 +247,7 @@ export function drawConvergence(
 
 export function drawBraid(ctx: CanvasRenderingContext2D, w: number, h: number, time: number, inp: HeroInput): void {
   const isLight = inp.theme === "light";
-  ctx.fillStyle = isLight ? "#F8F9FA" : "#08090B";
+  ctx.fillStyle = isLight ? "#F5F5F7" : "#000000";
   ctx.fillRect(0, 0, w, h);
   const cy = h * 0.4;
   const cols = isLight
@@ -300,7 +300,7 @@ export function drawBraid(ctx: CanvasRenderingContext2D, w: number, h: number, t
 
 export function drawField(ctx: CanvasRenderingContext2D, w: number, h: number, time: number, inp: HeroInput): void {
   const isLight = inp.theme === "light";
-  ctx.fillStyle = isLight ? "#F8F9FA" : "#08090B";
+  ctx.fillStyle = isLight ? "#F5F5F7" : "#000000";
   ctx.fillRect(0, 0, w, h);
   const cell = 18;
   const cols = Math.ceil(w / cell);

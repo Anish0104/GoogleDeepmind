@@ -33,7 +33,7 @@ const monoFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VERA · Multi-Camera Perceptual Reasoning",
+  title: "PRISM · Multi-Camera Physical Ground Truth",
   description: "Grounds conflicting spoken accounts in synchronized multi-angle camera proof.",
 };
 

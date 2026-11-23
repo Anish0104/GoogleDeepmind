@@ -25,8 +25,7 @@ export function ThemeToggle({
     <button
       type="button"
       onClick={handleClick}
-      aria-label={isDark ? "Switch to White Mode (Shift+D)" : "Switch to Dark Mode (Shift+D)"}
-      title={isDark ? "Switch to White Mode [Shift+D]" : "Switch to Dark Mode [Shift+D]"}
+      aria-label={isDark ? "Switch to White Mode" : "Switch to Dark Mode"}
       className="rs-theme-toggle"
       style={{
         position: "relative",

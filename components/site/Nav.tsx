@@ -1,5 +1,5 @@
-// OWNER: Dev 4. The floating glass nav pill: brand, the five screens with a sliding active
-// pill, crazy white/dark mode toggle, and New investigation button. Inspired by Wispr Flow.
+// OWNER: Dev 4. Apple-style global navigation: translucent frosted glass,
+// minimalist typography, active tab indicators, theme switch and pill CTA.
 "use client";
 
 import Link from "next/link";
@@ -9,18 +9,22 @@ import { NAV_ITEMS, navIndex } from "./routes";
 import { useTheme } from "./ThemeContext";
 import { ThemeToggle } from "./ThemeToggle";
 
-const EASE = "cubic-bezier(.22,1,.36,1)";
-
-export function Logo({ size = 20, isDark = true }: { size?: number; isDark?: boolean }) {
+export function Logo({ size = 18, isDark = true }: { size?: number; isDark?: boolean }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 26 26" fill="none" aria-hidden>
-      <g stroke={isDark ? "#FAF8F5" : "#0A0C10"} strokeWidth="1.6" strokeLinecap="round">
-        <path d="M2 3 L13 13" />
-        <path d="M24 3 L13 13" />
-        <path d="M2 23 L13 13" opacity="0.55" />
-        <path d="M24 23 L13 13" opacity="0.3" />
-      </g>
-      <circle cx="13" cy="13" r="3.2" fill="#10B981" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 2L2 20H22L12 2Z"
+        stroke={isDark ? "#F5F5F7" : "#1D1D1F"}
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 2L15 20"
+        stroke="#30D158"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="14" r="2" fill="#30D158" />
     </svg>
   );
 }
@@ -32,7 +36,7 @@ function PlayGlyph({ w = 7, h = 9, isDark = true }: { w?: number; h?: number; is
       style={{
         width: 0,
         height: 0,
-        borderLeft: `${w}px solid ${isDark ? "#08090B" : "#FAF8F5"}`,
+        borderLeft: `${w}px solid ${isDark ? "#000000" : "#FFFFFF"}`,
         borderTop: `${h / 2}px solid transparent`,
         borderBottom: `${h / 2}px solid transparent`,
       }}
@@ -50,7 +54,7 @@ export function Nav() {
   const idx = navIndex(pathname);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
+    const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -60,223 +64,210 @@ export function Nav() {
   return (
     <>
       <nav
-        aria-label="Primary"
+        aria-label="Global"
         style={{
           position: "fixed",
-          top: 18,
+          top: 0,
           left: 0,
           right: 0,
-          zIndex: 55,
-          display: "flex",
-          justifyContent: "center",
-          padding: "0 16px",
-          pointerEvents: "none",
+          height: 48,
+          zIndex: 100,
+          background: isDark
+            ? scrolled
+              ? "rgba(0,0,0,0.85)"
+              : "rgba(0,0,0,0.72)"
+            : scrolled
+              ? "rgba(255,255,255,0.88)"
+              : "rgba(255,255,255,0.8)",
+          backdropFilter: "saturate(180%) blur(20px)",
+          WebkitBackdropFilter: "saturate(180%) blur(20px)",
+          borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+          boxShadow: scrolled
+            ? isDark
+              ? "0 4px 20px rgba(0,0,0,0.4)"
+              : "0 4px 20px rgba(0,0,0,0.04)"
+            : "none",
+          transition: "background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease",
         }}
       >
         <div
           style={{
-            pointerEvents: "auto",
-            position: "relative",
+            maxWidth: 1040,
+            margin: "0 auto",
+            height: "100%",
             display: "flex",
             alignItems: "center",
-            gap: 12,
-            padding: "5px 6px 5px 12px",
-            borderRadius: 999,
-            background: isDark
-              ? scrolled
-                ? "rgba(10,12,16,0.92)"
-                : "rgba(12,14,18,0.78)"
-              : scrolled
-                ? "rgba(255,255,255,0.92)"
-                : "rgba(255,255,255,0.85)",
-            backdropFilter: "blur(28px) saturate(180%)",
-            WebkitBackdropFilter: "blur(28px) saturate(180%)",
-            border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
-            boxShadow: isDark
-              ? "inset 0 1px 0 rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.55), 0 0 40px rgba(16,185,129,0.06)"
-              : "inset 0 1px 0 rgba(255,255,255,0.95), 0 16px 48px -8px rgba(0,0,0,0.08), 0 0 30px rgba(16,185,129,0.06)",
-            transform: scrolled ? "scale(0.98)" : "none",
-            transition: `transform .5s ${EASE}, background .4s ${EASE}, border-color .4s ${EASE}, box-shadow .4s ${EASE}`,
+            justifyContent: "space-between",
+            padding: "0 22px",
+            boxSizing: "border-box",
           }}
         >
-          {/* Brand Lockup */}
+          {/* Brand */}
           <Link
             href="/"
-            aria-label="VERA home"
+            aria-label="PRISM home"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 10,
-              color: isDark ? "#FAF8F5" : "#0A0C10",
-              padding: "0 6px 0 0",
-              height: 36,
-              borderRadius: 999,
-              transition: "color 0.4s ease",
+              gap: 8,
               textDecoration: "none",
+              color: isDark ? "#F5F5F7" : "#1D1D1F",
+              transition: "opacity 0.2s ease",
             }}
           >
+            <Logo size={18} isDark={isDark} />
             <span
               style={{
-                position: "relative",
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: isDark ? "#08090B" : "#FFFFFF",
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: isDark
-                  ? "inset 0 0 10px rgba(16,185,129,0.15)"
-                  : "0 2px 6px rgba(0,0,0,0.05), inset 0 0 6px rgba(16,185,129,0.1)",
-                transition: "all 0.4s ease",
-              }}
-            >
-              <Logo size={18} isDark={isDark} />
-            </span>
-            <span
-              className="rs-mono"
-              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: 14,
                 fontWeight: 600,
-                letterSpacing: "0.2em",
-                fontSize: 13,
-                color: isDark ? "#FAF8F5" : "#0A0C10",
+                letterSpacing: "-0.01em",
               }}
             >
-              VERA
+              PRISM
             </span>
           </Link>
 
-          {/* Navigation Links with Gliding Pill */}
+          {/* Desktop Global Navigation Links */}
           <div
-            className="hidden min-[840px]:grid"
+            className="hidden min-[800px]:flex"
             style={{
+              alignItems: "center",
+              gap: 32,
+              height: "100%",
               position: "relative",
-              gridTemplateColumns: "repeat(5,92px)",
-              height: 36,
-              background: isDark ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.03)",
-              borderRadius: 999,
-              padding: 2,
             }}
           >
-            <span
-              aria-hidden
-              style={{
-                position: "absolute",
-                top: 2,
-                left: 2,
-                width: 88,
-                height: 32,
-                borderRadius: 999,
-                background: isDark ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.95)",
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)"}`,
-                boxSizing: "border-box",
-                boxShadow: isDark
-                  ? "inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.4)"
-                  : "0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,1)",
-                transform: `translateX(${Math.max(0, idx) * 92}px)`,
-                opacity: idx < 0 ? 0 : 1,
-                transition: `transform .45s ${EASE}, opacity .3s ${EASE}, background .4s ease, border-color .4s ease`,
-                pointerEvents: "none",
-              }}
-            />
-            {NAV_ITEMS.map((item, i) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={i === idx ? "page" : undefined}
-                className="rs-navlink"
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  height: 32,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  fontWeight: i === idx ? 600 : 500,
-                  color: i === idx ? (isDark ? "#FAF8F5" : "#0A0C10") : isDark ? "#94A3B8" : "#64748B",
-                  borderRadius: 999,
-                  textDecoration: "none",
-                  transition: `color .3s ${EASE}`,
-                }}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {NAV_ITEMS.map((item, i) => {
+              const active = i === idx;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center",
+                    height: "100%",
+                    fontSize: 12,
+                    fontWeight: active ? 600 : 400,
+                    letterSpacing: "-0.01em",
+                    color: active ? (isDark ? "#F5F5F7" : "#1D1D1F") : isDark ? "#86868B" : "#86868B",
+                    textDecoration: "none",
+                    transition: "color 0.2s ease, opacity 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active) e.currentTarget.style.color = isDark ? "#F5F5F7" : "#1D1D1F";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) e.currentTarget.style.color = "#86868B";
+                  }}
+                >
+                  {item.label}
+                  {active && (
+                    <span
+                      aria-hidden
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 2,
+                        borderRadius: "2px 2px 0 0",
+                        background: isDark ? "#F5F5F7" : "#1D1D1F",
+                      }}
+                    />
+                  )}
+                </Link>
+              );
+            })}
           </div>
 
-          {/* Right Controls: Crazy Theme Toggle + CTA */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <ThemeToggle />
+          {/* Right Controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <ThemeToggle size={30} />
 
             <Link
               href="/new"
-              className="rs-cta-btn"
               style={{
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                height: 36,
-                background: isDark ? "#FAF8F5" : "#0A0C10",
-                color: isDark ? "#08090B" : "#FAF8F5",
-                border: 0,
-                borderRadius: 999,
-                padding: "0 16px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
+                gap: 5,
+                height: 28,
+                padding: "0 13px",
+                borderRadius: 980,
+                fontSize: 12,
+                fontWeight: 500,
+                letterSpacing: "-0.01em",
+                background: isDark ? "#FFFFFF" : "#1D1D1F",
+                color: isDark ? "#000000" : "#FFFFFF",
                 textDecoration: "none",
-                boxShadow: isDark
-                  ? "0 4px 16px rgba(255,255,255,0.08)"
-                  : "0 4px 16px rgba(0,0,0,0.12)",
-                transition: `transform .3s ${EASE}, box-shadow .3s ${EASE}, background .3s ${EASE}, color .3s ${EASE}`,
+                transition: "opacity 0.2s ease, transform 0.2s ease",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.85";
+                e.currentTarget.style.transform = "scale(1.02)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1";
+                e.currentTarget.style.transform = "none";
               }}
             >
-              <span aria-hidden style={{ fontSize: 16, lineHeight: "14px", marginTop: -1 }}>+</span>
+              <span aria-hidden style={{ fontSize: 14, lineHeight: 1, marginTop: -1 }}>+</span>
               <span className="hidden min-[480px]:inline">New investigation</span>
               <span className="min-[480px]:hidden">New</span>
             </Link>
 
-            {/* Mobile Menu Toggle Button */}
+            {/* Mobile Hamburger Button */}
             <button
               type="button"
               onClick={() => setMenuOpen((o) => !o)}
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
-              className="flex min-[840px]:hidden"
+              className="flex min-[800px]:hidden"
               style={{
                 position: "relative",
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 borderRadius: "50%",
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)"}`,
-                background: isDark ? "#08090B" : "#FFFFFF",
+                border: "none",
+                background: "transparent",
                 cursor: "pointer",
                 alignItems: "center",
                 justifyContent: "center",
-                flex: "none",
-                transition: "all 0.4s ease",
+                padding: 0,
               }}
             >
-              {[menuOpen ? "rotate(45deg)" : "translateY(-3px)", menuOpen ? "rotate(-45deg)" : "translateY(3px)"].map(
-                (tf, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      position: "absolute",
-                      left: 10,
-                      width: 14,
-                      height: 1.5,
-                      background: isDark ? "#FAF8F5" : "#0A0C10",
-                      borderRadius: 1,
-                      transform: tf,
-                      transition: `transform .5s ${EASE}, background .4s ease`,
-                    }}
-                  />
-                ),
-              )}
+              <div style={{ width: 16, height: 12, position: "relative" }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: menuOpen ? 5 : 1,
+                    width: "100%",
+                    height: 1.5,
+                    borderRadius: 1,
+                    background: isDark ? "#F5F5F7" : "#1D1D1F",
+                    transform: menuOpen ? "rotate(45deg)" : "none",
+                    transition: "transform 0.25s ease, top 0.25s ease",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    bottom: menuOpen ? 5 : 1,
+                    width: "100%",
+                    height: 1.5,
+                    borderRadius: 1,
+                    background: isDark ? "#F5F5F7" : "#1D1D1F",
+                    transform: menuOpen ? "rotate(-45deg)" : "none",
+                    transition: "transform 0.25s ease, bottom 0.25s ease",
+                  }}
+                />
+              </div>
             </button>
           </div>
         </div>
@@ -284,72 +275,64 @@ export function Nav() {
 
       {/* Mobile Drawer Overlay */}
       <div
-        className="min-[840px]:hidden"
+        className="min-[800px]:hidden"
         aria-hidden={!menuOpen}
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 54,
-          background: isDark ? "rgba(8,9,11,0.96)" : "rgba(248,249,250,0.96)",
-          backdropFilter: "blur(32px)",
-          WebkitBackdropFilter: "blur(32px)",
+          top: 48,
+          zIndex: 99,
+          background: isDark ? "rgba(0,0,0,0.92)" : "rgba(255,255,255,0.92)",
+          backdropFilter: "saturate(180%) blur(24px)",
+          WebkitBackdropFilter: "saturate(180%) blur(24px)",
           opacity: menuOpen ? 1 : 0,
           pointerEvents: menuOpen ? "auto" : "none",
-          transition: `opacity .5s ${EASE}, background .4s ease`,
+          transition: "opacity 0.3s ease",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
-          padding: "96px 32px 48px",
-          gap: 12,
+          padding: "32px 24px 48px",
+          gap: 16,
         }}
       >
-        <div style={{ marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span
-            className="rs-mono"
-            style={{ fontSize: 11, letterSpacing: "0.14em", color: isDark ? "#64748B" : "#94A3B8" }}
-          >
-            NAVIGATION
-          </span>
-          <ThemeToggle showLabel={true} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+          {NAV_ITEMS.map((item, i) => {
+            const active = i === idx;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                tabIndex={menuOpen ? 0 : -1}
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  padding: "12px 0",
+                  fontSize: 24,
+                  fontWeight: active ? 600 : 400,
+                  letterSpacing: "-0.02em",
+                  color: active ? (isDark ? "#FFFFFF" : "#000000") : "var(--text-muted)",
+                  textDecoration: "none",
+                  borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+                }}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </div>
-        {NAV_ITEMS.map((item, i) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            tabIndex={menuOpen ? 0 : -1}
-            onClick={() => setMenuOpen(false)}
-            className="rs-serif"
-            style={{
-              padding: "10px 0",
-              fontSize: 34,
-              lineHeight: "38px",
-              fontWeight: 500,
-              letterSpacing: "-0.02em",
-              color: i === idx ? "#10B981" : isDark ? "#FAF8F5" : "#0A0C10",
-              opacity: menuOpen ? 1 : 0,
-              transform: menuOpen ? "none" : "translateY(24px)",
-              transition: `opacity .5s ${EASE} ${menuOpen ? i * 50 : 0}ms, transform .5s ${EASE} ${menuOpen ? i * 50 : 0}ms, color .3s ease`,
-            }}
-          >
-            {item.label}
-          </Link>
-        ))}
+
         <Link
           href="/new"
           tabIndex={menuOpen ? 0 : -1}
           onClick={() => setMenuOpen(false)}
-          className="rs-mono"
           style={{
             marginTop: 24,
             padding: "14px 24px",
             fontSize: 14,
-            fontWeight: 600,
-            borderRadius: 999,
+            fontWeight: 500,
+            borderRadius: 980,
             textAlign: "center",
-            background: isDark ? "#FAF8F5" : "#0A0C10",
-            color: isDark ? "#08090B" : "#FAF8F5",
-            opacity: menuOpen ? 1 : 0,
-            transition: `opacity .5s ${EASE}`,
+            textDecoration: "none",
+            background: isDark ? "#FFFFFF" : "#1D1D1F",
+            color: isDark ? "#000000" : "#FFFFFF",
           }}
         >
           + New investigation

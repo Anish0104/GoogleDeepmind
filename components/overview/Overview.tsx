@@ -16,10 +16,10 @@ const SECTION = { position: "relative", zIndex: 2, margin: "0 auto" } as const;
 const H2 = { margin: 0, fontWeight: 400, fontSize: "clamp(42px,5.4vw,80px)", lineHeight: 1.02, letterSpacing: "-0.025em" } as const;
 
 const HOW = [
-  { n: "01", color: "#38BDF8", title: "Capture & sync", body: "4 phones record around a mat with zones A–F; an acoustic clap and screen flash line them up to sub-frame precision.", chips: ["acoustic clap + flash", "≤ 4 s clips"] },
-  { n: "02", color: "#34D399", title: "Evidence synthesis", body: "Gemini lists critical entities and yes/no visual questions; the Gemini Decisions API evaluates every camera angle and half-second slice with calibrated probability.", chips: ["hydrogen", "decision-1"] },
-  { n: "03", color: "#10B981", title: "Grounded labels", body: "Deterministic rules in verdict() evaluate cross-camera evidence into mathematical labels. Contradicted requires absolute consensus. Carbon extracts claims into cited timestamps.", chips: ["verdict()", "carbon"] },
-  { n: "04", color: "#A78BFA", title: "Autonomous agents", body: "Two Gemini Managed Agents inspect edge clips. The Investigator settles undecided claims; the Skeptic seeks falsifying footage to challenge preliminary verdicts.", chips: ["Investigator", "Skeptic"] },
+  { n: "01", color: "#2997FF", title: "Capture & sync", body: "Synchronized recording across multiple viewpoints; an acoustic impulse and optical pulse align camera streams to sub-frame precision.", chips: ["sub-frame sync", "≤ 4 s clips"] },
+  { n: "02", color: "#30D158", title: "Evidence synthesis", body: "High-resolution spatial feature extractors map critical entities and physical states; calibrated probabilistic reasoning evaluates every camera angle and slice.", chips: ["spatial-lattice", "calibrated-prob"] },
+  { n: "03", color: "#34D399", title: "Grounded labels", body: "Deterministic physical rules evaluate cross-camera evidence into mathematical labels. Contradicted requires absolute consensus across unoccluded viewpoints.", chips: ["verdict()", "temporal-grounding"] },
+  { n: "04", color: "#BF5AF2", title: "Autonomous agents", body: "Dedicated reasoning agents inspect edge clips. The Investigator settles undecided moments; the Skeptic audits falsifying viewpoints to challenge preliminary consensus.", chips: ["Investigator", "Skeptic"] },
 ];
 
 const TILES: { v: Verdict; name: string; rule: string }[] = [
@@ -236,9 +236,9 @@ export function Overview({
             </Link>
           </div>
         </div>
-        <div className="rs-mono" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, marginTop: 40, fontSize: 11, letterSpacing: "0.08em", color: "#64748B" }}>
-          <span>VERA · Gemini 4 NYC Hackathon · Problem Statement Two: Element 119</span>
-          <span>Best Use of Managed Agents</span>
+        <div className="rs-mono" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, marginTop: 40, fontSize: 11, letterSpacing: "0.08em", color: "var(--text-muted)" }}>
+          <span>PRISM · Multi-Perspective Evidence Architecture</span>
+          <span>Local On-Device Privacy · Mathematical Consensus</span>
         </div>
       </section>
     </div>

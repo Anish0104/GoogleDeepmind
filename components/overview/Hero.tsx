@@ -128,8 +128,8 @@ export function Hero({
           position: "absolute",
           inset: 0,
           background: isDark
-            ? "linear-gradient(90deg,rgba(8,9,11,0.95) 0%,rgba(8,9,11,0.65) 36%,rgba(8,9,11,0) 65%)"
-            : "linear-gradient(90deg,rgba(248,249,250,0.96) 0%,rgba(248,249,250,0.72) 38%,rgba(248,249,250,0) 65%)",
+            ? "linear-gradient(90deg,rgba(0,0,0,0.96) 0%,rgba(0,0,0,0.65) 36%,rgba(0,0,0,0) 65%)"
+            : "linear-gradient(90deg,rgba(245,245,247,0.96) 0%,rgba(245,245,247,0.72) 38%,rgba(245,245,247,0) 65%)",
           pointerEvents: "none",
           transition: "background 0.4s ease",
         }}
@@ -142,8 +142,8 @@ export function Hero({
           bottom: 0,
           height: 220,
           background: isDark
-            ? "linear-gradient(0deg,#08090B,rgba(8,9,11,0))"
-            : "linear-gradient(0deg,#F8F9FA,rgba(248,249,250,0))",
+            ? "linear-gradient(0deg,#000000,rgba(0,0,0,0))"
+            : "linear-gradient(0deg,#F5F5F7,rgba(245,245,247,0))",
           pointerEvents: "none",
           transition: "background 0.4s ease",
         }}
@@ -158,16 +158,16 @@ export function Hero({
               gap: 8,
               padding: "6px 16px",
               borderRadius: 999,
-              background: isDark ? "rgba(16, 185, 129, 0.08)" : "rgba(16, 185, 129, 0.12)",
-              border: `1px solid ${isDark ? "rgba(16, 185, 129, 0.22)" : "rgba(16, 185, 129, 0.32)"}`,
-              color: isDark ? "#34D399" : "#065F46",
+              background: isDark ? "rgba(48, 209, 88, 0.08)" : "rgba(48, 209, 88, 0.12)",
+              border: `1px solid ${isDark ? "rgba(48, 209, 88, 0.22)" : "rgba(48, 209, 88, 0.28)"}`,
+              color: isDark ? "#30D158" : "#248A3D",
               fontSize: 11,
               letterSpacing: "0.14em",
               fontWeight: 600,
             }}
           >
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 10px #10B981", flex: "none" }} />
-            GEMINI 4 NYC HACKATHON · MULTI-CAMERA PHYSICAL REASONING
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#30D158", boxShadow: "0 0 10px #30D158", flex: "none" }} />
+            PHYSICAL GROUND TRUTH · MULTI-CAMERA CONSENSUS
           </span>
         </div>
         <h1

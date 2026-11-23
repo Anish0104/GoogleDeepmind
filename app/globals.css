@@ -3,75 +3,75 @@
 /* OWNER: Dev 4. Wispr Flow-inspired design system: editorial serif, crisp geometric sans, frosted micro-glass. */
 
 @theme {
-  --font-sans: var(--font-sans), system-ui, -apple-system, sans-serif;
-  --font-serif: var(--font-serif), Georgia, serif;
-  --font-mono: var(--font-mono), ui-monospace, monospace;
-  --color-page: #08090B;
-  --color-card: #0F1117;
-  --color-raised: #151821;
-  --color-ink: #FAF8F5;
-  --color-ink-2: #E2E8F0;
-  --color-body: #94A3B8;
-  --color-muted: #64748B;
-  --color-caption: #475569;
-  --color-meta: #64748B;
-  --color-faint: #334155;
-  --color-cyan: #38BDF8;
-  --color-emerald: #10B981;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-serif: var(--font-serif), -apple-system, BlinkMacSystemFont, "New York", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  --color-page: #000000;
+  --color-card: #161617;
+  --color-raised: #1C1C1E;
+  --color-ink: #F5F5F7;
+  --color-ink-2: #E8E8ED;
+  --color-body: #A1A1A6;
+  --color-muted: #86868B;
+  --color-caption: #6E6E73;
+  --color-meta: #86868B;
+  --color-faint: #333336;
+  --color-cyan: #2997FF;
+  --color-emerald: #30D158;
   --color-jade: #34D399;
-  --color-violet: #A78BFA;
-  --color-sup: #34D399;
-  --color-con: #F43F5E;
-  --color-ins: #FBBF24;
+  --color-violet: #BF5AF2;
+  --color-sup: #30D158;
+  --color-con: #FF453A;
+  --color-ins: #FFD60A;
   --ease-base: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-reveal: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 :root {
-  --bg-page: #08090B;
-  --text-ink: #FAF8F5;
-  --text-ink-2: #E2E8F0;
-  --text-body: #94A3B8;
-  --text-muted: #64748B;
-  --bg-card: rgba(15, 17, 23, 0.65);
+  --bg-page: #000000;
+  --text-ink: #F5F5F7;
+  --text-ink-2: #E8E8ED;
+  --text-body: #A1A1A6;
+  --text-muted: #86868B;
+  --bg-card: #161617;
   --border-card: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(52, 211, 153, 0.35);
-  --shadow-card: inset 0 1px 0 0 rgba(255, 255, 255, 0.08), 0 20px 50px rgba(0, 0, 0, 0.5);
-  --nav-bg: rgba(9, 10, 13, 0.88);
+  --border-hover: rgba(52, 199, 89, 0.35);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --nav-bg: rgba(0, 0, 0, 0.8);
   --nav-border: rgba(255, 255, 255, 0.08);
-  --nav-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 20px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(16, 185, 129, 0.06);
-  --btn-pri-bg: #FAF8F5;
-  --btn-pri-text: #08090B;
-  --btn-ghost-bg: rgba(255, 255, 255, 0.04);
-  --btn-ghost-border: rgba(255, 255, 255, 0.12);
-  --btn-ghost-text: #FAF8F5;
-  --glow-emerald: rgba(16, 185, 129, 0.25);
-  --canvas-tint: rgba(8, 9, 11, 0.95);
-  --hero-fade: #08090B;
+  --nav-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+  --btn-pri-bg: #FFFFFF;
+  --btn-pri-text: #000000;
+  --btn-ghost-bg: rgba(255, 255, 255, 0.08);
+  --btn-ghost-border: rgba(255, 255, 255, 0.14);
+  --btn-ghost-text: #F5F5F7;
+  --glow-emerald: rgba(52, 199, 89, 0.2);
+  --canvas-tint: rgba(0, 0, 0, 0.95);
+  --hero-fade: #000000;
 }
 
 [data-theme="light"],
 html[data-theme="light"] {
-  --bg-page: #F8F9FA;
-  --text-ink: #0A0C10;
-  --text-ink-2: #1E232E;
-  --text-body: #475569;
-  --text-muted: #64748B;
-  --bg-card: rgba(255, 255, 255, 0.88);
+  --bg-page: #F5F5F7;
+  --text-ink: #1D1D1F;
+  --text-ink-2: #333336;
+  --text-body: #515154;
+  --text-muted: #86868B;
+  --bg-card: #FFFFFF;
   --border-card: rgba(0, 0, 0, 0.08);
-  --border-hover: rgba(5, 150, 105, 0.35);
-  --shadow-card: 0 20px 48px -12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.95);
-  --nav-bg: rgba(255, 255, 255, 0.86);
-  --nav-border: rgba(0, 0, 0, 0.09);
-  --nav-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 16px 40px -8px rgba(0, 0, 0, 0.1), 0 0 30px rgba(16, 185, 129, 0.08);
-  --btn-pri-bg: #0A0C10;
-  --btn-pri-text: #FAF8F5;
+  --border-hover: rgba(48, 209, 88, 0.4);
+  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --nav-bg: rgba(255, 255, 255, 0.82);
+  --nav-border: rgba(0, 0, 0, 0.08);
+  --nav-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+  --btn-pri-bg: #1D1D1F;
+  --btn-pri-text: #FFFFFF;
   --btn-ghost-bg: rgba(0, 0, 0, 0.04);
-  --btn-ghost-border: rgba(0, 0, 0, 0.12);
-  --btn-ghost-text: #0A0C10;
-  --glow-emerald: rgba(16, 185, 129, 0.18);
-  --canvas-tint: rgba(248, 249, 250, 0.92);
-  --hero-fade: #F8F9FA;
+  --btn-ghost-border: rgba(0, 0, 0, 0.1);
+  --btn-ghost-text: #1D1D1F;
+  --glow-emerald: rgba(48, 209, 88, 0.16);
+  --canvas-tint: rgba(245, 245, 247, 0.92);
+  --hero-fade: #F5F5F7;
 }
 
 /* The shell applies to the cinematic routes; /phone and /label keep their look. */

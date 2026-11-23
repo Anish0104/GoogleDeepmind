@@ -8,7 +8,6 @@ import type { ReplayScene } from "./loadScene";
 import { CameraGrid } from "./CameraGrid";
 import { ClaimRow } from "./ClaimRow";
 import { AgentTrace } from "./AgentTrace";
-import { CostMeter } from "./CostMeter";
 import { Grid } from "./Grid";
 import { ScenePicker } from "./ScenePicker";
 import { Transport } from "./Transport";
@@ -105,7 +104,6 @@ export function Board({
               );
             })}
           </div>
-          <CostMeter spentUsd={spent} />
         </div>
       </header>
 
