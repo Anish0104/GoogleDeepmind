@@ -12,17 +12,17 @@ import { AGENT_COLOR, SOURCE_COLOR, verdictStyle } from "@/components/verdictSty
 import { ClipPlayer } from "./ClipPlayer";
 import { clockTime } from "./format";
 
-const CARD = { border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, background: "rgba(15,17,23,0.65)", backdropFilter: "blur(20px)", padding: 24, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)" } as const;
+const CARD = { border: "1px solid var(--border-card)", borderRadius: 20, background: "var(--bg-card)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", padding: 24, boxShadow: "var(--shadow-card)", transition: "background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease" } as const;
 
 function Bar({ name, value, color, threshold }: { name: string; value: number | null; color: string; threshold: number }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "86px minmax(0,1fr) 44px", gap: 10, alignItems: "center", marginTop: 9 }}>
-      <span style={{ fontSize: 13, color: "#8A9099" }}>{name}</span>
-      <div style={{ position: "relative", height: 8, borderRadius: 4, background: "rgba(236,230,218,0.06)" }}>
+      <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{name}</span>
+      <div style={{ position: "relative", height: 8, borderRadius: 4, background: "var(--badge-inactive-bg, rgba(236,230,218,0.06))" }}>
         <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: value == null ? "0%" : pct(value), borderRadius: 4, background: color, boxShadow: `0 0 12px ${color}`, transition: "width .8s cubic-bezier(.2,.8,.2,1)" }} />
-        <div title={`threshold ${threshold.toFixed(2)}`} style={{ position: "absolute", left: pct(threshold), top: -4, bottom: -4, width: 1, background: "#ECE6DA", opacity: 0.6 }} />
+        <div title={`threshold ${threshold.toFixed(2)}`} style={{ position: "absolute", left: pct(threshold), top: -4, bottom: -4, width: 1, background: "var(--text-ink)", opacity: 0.6 }} />
       </div>
-      <span className="rs-mono" style={{ fontSize: 12, textAlign: "right" }}>{value == null ? "—" : value.toFixed(2)}</span>
+      <span className="rs-mono" style={{ fontSize: 12, textAlign: "right", color: "var(--text-ink)" }}>{value == null ? "—" : value.toFixed(2)}</span>
     </div>
   );
 }
@@ -81,7 +81,7 @@ export function ProofView({
   const evidence = result?.evidence ?? [];
 
   return (
-    <main style={{ position: "relative", zIndex: 2, padding: "88px clamp(16px,3vw,40px) 80px", maxWidth: 1400, margin: "0 auto", boxSizing: "border-box" }}>
+    <main style={{ position: "relative", zIndex: 2, padding: "88px clamp(16px,3vw,40px) 80px", maxWidth: 1400, margin: "0 auto", boxSizing: "border-box", color: "var(--text-ink)" }}>
       {tabs}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,520px),1fr))", gap: 24, alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>

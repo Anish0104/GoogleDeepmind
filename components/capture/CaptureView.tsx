@@ -13,8 +13,8 @@ import { useSite } from "@/components/site/SiteStore";
 import { useCanvasLoop } from "@/components/site/useCanvasLoop";
 import { STAGES, accountText, offsetText, splitClaims, splitTotal, stageProgress } from "./split";
 
-const CARD = { border: "1px solid rgba(236,230,218,0.09)", borderRadius: 20, background: "#131209", padding: 24 } as const;
-const H3 = { margin: 0, fontSize: 16, fontWeight: 500 } as const;
+const CARD = { border: "1px solid var(--border-card)", borderRadius: 20, background: "var(--bg-card)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", padding: 24, boxShadow: "var(--shadow-card)", transition: "background 0.3s ease, border-color 0.3s ease" } as const;
+const H3 = { margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-ink)" } as const;
 const PHONES: { id: CameraId; x: string; y: string; rot: string }[] = [
   { id: "A", x: "50%", y: "91%", rot: "0deg" },
   { id: "B", x: "7%", y: "50%", rot: "0deg" },
@@ -46,14 +46,14 @@ export function CaptureView({ manifest, claims }: { manifest: SceneManifest; cla
   const actor = claims[0]?.actor ?? "Actor";
 
   return (
-    <main style={{ position: "relative", zIndex: 2, padding: "100px clamp(16px,3vw,40px) 80px", maxWidth: 1320, margin: "0 auto", boxSizing: "border-box" }}>
+    <main style={{ position: "relative", zIndex: 2, padding: "100px clamp(16px,3vw,40px) 80px", maxWidth: 1320, margin: "0 auto", boxSizing: "border-box", color: "var(--text-ink)" }}>
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: 16, marginBottom: 32 }}>
         <div>
-          <div className="rs-mono" style={{ fontSize: 12, letterSpacing: "0.14em", color: "#7D838C" }}>
+          <div className="rs-mono" style={{ fontSize: 12, letterSpacing: "0.14em", color: "var(--text-muted)" }}>
             SCENE {manifest.sceneId === "demo-001" ? "01" : manifest.sceneId} · {(manifest.room || "—").toUpperCase()} · {manifest.durationS}s
           </div>
-          <h1 style={{ margin: "10px 0 0", fontSize: "clamp(36px,4.4vw,60px)", fontWeight: 500, letterSpacing: "-0.04em", lineHeight: 1 }}>
-            Capture <span style={{ fontWeight: 400, color: "#9AA0A8" }}>&amp; sync</span>
+          <h1 style={{ margin: "10px 0 0", fontSize: "clamp(36px,4.4vw,60px)", fontWeight: 500, letterSpacing: "-0.04em", lineHeight: 1, color: "var(--text-ink)" }}>
+            Capture <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>&amp; sync</span>
           </h1>
         </div>
         <div className="rs-mono" style={{ display: "flex", gap: 6, fontSize: 12 }}>

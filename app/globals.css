@@ -48,6 +48,13 @@
   --glow-emerald: rgba(52, 199, 89, 0.2);
   --canvas-tint: rgba(0, 0, 0, 0.95);
   --hero-fade: #000000;
+  --bg-input: #0E0F12;
+  --border-input: rgba(255, 255, 255, 0.14);
+  --bg-dropzone: rgba(14, 15, 18, 0.85);
+  --border-dropzone: rgba(255, 255, 255, 0.14);
+  --badge-inactive-bg: rgba(255, 255, 255, 0.04);
+  --badge-inactive-border: rgba(255, 255, 255, 0.12);
+  --badge-inactive-text: #86868B;
 }
 
 [data-theme="light"],
@@ -72,6 +79,13 @@ html[data-theme="light"] {
   --glow-emerald: rgba(48, 209, 88, 0.16);
   --canvas-tint: rgba(245, 245, 247, 0.92);
   --hero-fade: #F5F5F7;
+  --bg-input: #FFFFFF;
+  --border-input: rgba(0, 0, 0, 0.15);
+  --bg-dropzone: rgba(0, 0, 0, 0.02);
+  --border-dropzone: rgba(0, 0, 0, 0.14);
+  --badge-inactive-bg: rgba(0, 0, 0, 0.04);
+  --badge-inactive-border: rgba(0, 0, 0, 0.1);
+  --badge-inactive-text: #6E6E73;
 }
 
 /* The shell applies to the cinematic routes; /phone and /label keep their look. */
