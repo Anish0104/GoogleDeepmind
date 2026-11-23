@@ -25,9 +25,9 @@ const EXPENSIVE_CALLS = 480; // warn above ~30 s of footage
 const BACKEND_APPLIES_WINDOW = false;
 
 const QUESTION_SETS = [
-  { value: "sdg-nearmiss", label: "Factory forklift near miss", help: "Fixed questions about a forklift, a worker, proximity, contact and dodging." },
-  { value: "warehouse", label: "Warehouse crossing", help: "Fixed questions for the warehouse crossing scenario." },
-  { value: "", label: "General investigation", help: "No fixed questions: the system discovers what to ask from the footage." },
+  { value: "", label: "General Investigation (Automatic Discovery)", help: "Autonomous discovery: PRISM analyzes and scouts physical claims directly from the uploaded camera footage." },
+  { value: "sdg-nearmiss", label: "Proximity & Contact Verification", help: "Spatial proximity, avoidance maneuvers, and physical contact verification." },
+  { value: "warehouse", label: "Spatial Zone & Boundary Crossing", help: "Spatial boundaries, movement corridors, and zone entry/exit checks." },
 ] as const;
 
 const C = {
@@ -173,9 +173,9 @@ const emptyUploads = (): Record<CameraId, Upload> => ({ A: { file: null, status:
 const freshSteps = (): Record<StepKey, StepState> => ({ create: "pending", upload: "pending", perceive: "pending", account: "pending", agents: "pending", done: "pending" });
 
 export function NewInvestigation() {
-  const [name, setName] = useState("Factory forklift near miss");
+  const [name, setName] = useState("Incident Investigation");
   const [cams, setCams] = useState<CameraId[]>([...ALL_CAMS]);
-  const [qset, setQset] = useState<string>("sdg-nearmiss");
+  const [qset, setQset] = useState<string>("");
   const [presynced, setPresynced] = useState(true);
   const [statement, setStatement] = useState("");
   const [uploads, setUploads] = useState<Record<CameraId, Upload>>(emptyUploads);
@@ -551,7 +551,7 @@ export function NewInvestigation() {
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-ink)" }}>Investigation details</h3>
             <label style={{ display: "block", marginTop: 18 }}>
               <span className="rs-mono" style={LABEL}>Investigation name</span>
-              <input value={name} disabled={locked} onChange={(e) => setName(e.target.value)} placeholder="Factory forklift near miss" style={{ ...INPUT, marginTop: 8, opacity: locked ? 0.6 : 1 }} />
+              <input value={name} disabled={locked} onChange={(e) => setName(e.target.value)} placeholder="e.g. Incident #104 · Spatial claim verification" style={{ ...INPUT, marginTop: 8, opacity: locked ? 0.6 : 1 }} />
             </label>
 
             <div style={{ marginTop: 18 }}>
@@ -589,7 +589,7 @@ export function NewInvestigation() {
                 ))}
               </select>
               <span style={{ display: "block", marginTop: 8, fontSize: 13, color: "var(--text-muted)", lineHeight: "19px" }}>
-                {QUESTION_SETS.find((q) => q.value === qset)?.help} Fixed question sets are scenario-specific: pick one only if the footage shows that scenario.
+                {QUESTION_SETS.find((q) => q.value === qset)?.help}
               </span>
             </label>
 
@@ -663,7 +663,7 @@ export function NewInvestigation() {
             <label style={{ display: "block" }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-ink)" }}>Witness Statement</h3>
               <textarea value={statement} disabled={busy || steps.account === "done"} onChange={(e) => setStatement(e.target.value)} rows={5}
-                placeholder="The forklift approached the worker. I stepped aside before it reached me, and the forklift never touched me."
+                placeholder="Enter the spoken or written witness statement to verify against multi-angle footage (e.g. 'I placed the keys on the desk. The blue container remained closed the entire time.')"
                 style={{ ...INPUT, marginTop: 12, resize: "vertical", lineHeight: "22px" }} />
             </label>
             {resumed && needsStatement && !statement.trim() && (
