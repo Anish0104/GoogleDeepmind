@@ -50,7 +50,7 @@ export function CaptureView({ manifest, claims }: { manifest: SceneManifest; cla
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: 16, marginBottom: 32 }}>
         <div>
           <div className="rs-mono" style={{ fontSize: 12, letterSpacing: "0.14em", color: "#7D838C" }}>
-            SCENE {manifest.sceneId} · {(manifest.room || "—").toUpperCase()} · {manifest.durationS}s
+            SCENE {manifest.sceneId === "demo-001" ? "01" : manifest.sceneId} · {(manifest.room || "—").toUpperCase()} · {manifest.durationS}s
           </div>
           <h1 style={{ margin: "10px 0 0", fontSize: "clamp(36px,4.4vw,60px)", fontWeight: 500, letterSpacing: "-0.04em", lineHeight: 1 }}>
             Capture <span style={{ fontWeight: 400, color: "#9AA0A8" }}>&amp; sync</span>

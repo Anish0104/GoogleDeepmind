@@ -72,7 +72,7 @@ export function ProofView({
     return (
       <main style={{ position: "relative", zIndex: 2, padding: "88px clamp(16px,3vw,40px) 80px", maxWidth: 1400, margin: "0 auto" }}>
         {tabs}
-        <p style={{ color: "var(--text-muted)" }}>No claim {claimId} in scene {sceneId}.</p>
+        <p style={{ color: "var(--text-muted)" }}>No claim {claimId} in scene {sceneId === "demo-001" ? "Primary Investigation" : sceneId}.</p>
       </main>
     );
   }

@@ -210,7 +210,7 @@ export function Overview({
             See every label&rsquo;s <span style={{ fontStyle: "italic", color: "#10B981" }}>proof.</span>
           </h2>
           <p style={{ margin: "20px 0 0", color: isDark ? "#94A3B8" : "#475569", fontSize: 17, maxWidth: 540, lineHeight: 1.6 }}>
-            Replay scene {sceneId} on the board: the multi-angle footage pass, the autonomous agents, and the camera evidence behind each claim.
+            Replay the investigation on the board: the multi-angle footage pass, the autonomous agents, and the camera evidence behind each claim.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 36 }}>
             <Link href="/new" className="rs-btn rs-btn-primary" style={{ padding: "15px 28px", fontSize: 14, fontWeight: 600 }}>

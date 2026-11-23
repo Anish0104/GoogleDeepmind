@@ -22,7 +22,7 @@ export function ScenePicker({ scenes, current }: { scenes: string[]; current: st
       >
         {scenes.map((s) => (
           <option key={s} value={s}>
-            {s}
+            {s.includes("demo-001") ? "Reference Investigation" : s.replace(/^data\/scenes\//, "")}
           </option>
         ))}
       </select>

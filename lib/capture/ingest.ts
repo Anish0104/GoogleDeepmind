@@ -127,11 +127,13 @@ export const MAX_RECORDING_BYTES = 500 * 1024 * 1024;
 function recordingKind(mimeType: string, fileName?: string): "webm" | "mp4" | "mov" {
   const base = mimeType.split(";")[0]!.trim().toLowerCase();
   if (base === "video/webm") return "webm";
-  if (base === "video/mp4") return "mp4";
+  if (base === "video/mp4" || base === "video/m4v" || base === "video/x-m4v") return "mp4";
   if (base === "video/quicktime") return "mov";
-  if (base === "" || base === "application/octet-stream") {
-    const ext = path.extname(fileName ?? "").slice(1).toLowerCase();
-    if (ext === "webm" || ext === "mp4" || ext === "mov") return ext;
+  const ext = path.extname(fileName ?? "").slice(1).toLowerCase();
+  if (ext === "webm" || ext === "mp4" || ext === "mov") return ext as "webm" | "mp4" | "mov";
+  if (ext === "m4v") return "mp4";
+  if (base === "" || base === "application/octet-stream" || base.startsWith("video/")) {
+    return "mp4";
   }
   throw new IngestError(`unsupported video type ${JSON.stringify(mimeType || fileName || "")}; expected webm, mp4 or mov`);
 }
@@ -176,7 +178,12 @@ export async function saveRecording(input: RecordingInput): Promise<RecordingRes
     try {
       await remux(upload, staged); // fixes the container (and turns .mov into .mp4)
     } catch {
-      throw new IngestError("not a playable video (could not read the file)");
+      const directInfo = await probe(upload).catch(() => null);
+      if (directInfo && directInfo.width !== undefined && directInfo.durationS > 0) {
+        await rename(upload, staged);
+      } else {
+        throw new IngestError("not a playable video (could not read the file)");
+      }
     }
     const info = await probe(staged).catch(() => null);
     if (!info || info.width === undefined || !(info.durationS > 0)) throw new IngestError("not a playable video (no video track)");

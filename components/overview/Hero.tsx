@@ -51,7 +51,7 @@ function HudCard({ sceneId, claims, results }: { sceneId: string; claims: Claim[
       <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, letterSpacing: "0.08em", color: isDark ? "#64748B" : "#475569" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 8px #10B981" }} />
-          <span style={{ color: isDark ? "#10B981" : "#059669", fontWeight: 600 }}>LIVE SYNC</span> · {sceneId} · {claim.id}
+          <span style={{ color: isDark ? "#10B981" : "#059669", fontWeight: 600 }}>LIVE SYNC</span> · {sceneId === "demo-001" ? "SCENE 01" : sceneId} · {claim.id}
         </span>
         <span style={{ color: isDark ? "#94A3B8" : "#475569" }}>{winTxt(claim.window)}</span>
       </div>
@@ -194,7 +194,7 @@ export function Hero({
             className="rs-btn rs-btn-ghost"
             style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 28px", fontSize: 14, fontWeight: 500 }}
           >
-            Watch the demo →
+            Explore the investigation →
           </Link>
         </div>
       </div>

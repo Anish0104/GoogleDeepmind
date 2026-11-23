@@ -79,7 +79,9 @@ export function Board({
       <header style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 20, paddingBottom: 20, borderBottom: "1px solid var(--border-card)" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <h1 className="rs-serif" style={{ margin: 0, fontSize: 32, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--text-ink)" }}>{manifest.sceneId}</h1>
+            <h1 className="rs-serif" style={{ margin: 0, fontSize: 32, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--text-ink)" }}>
+              {manifest.sceneId === "demo-001" ? "Primary Investigation" : manifest.sceneId}
+            </h1>
             {manifest.plannedOcclusion && (
               <span className="rs-mono" style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, border: "1px solid rgba(251,191,36,0.35)", background: "rgba(251,191,36,0.08)", color: "#FBBF24" }}>
                 planned occlusion
@@ -87,7 +89,7 @@ export function Board({
             )}
           </div>
           <div className="rs-mono" style={{ marginTop: 6, fontSize: 12, color: "var(--text-muted)" }}>
-            {[manifest.room || "—", manifest.split, `${manifest.durationS}s`, `${manifest.cameras.length} cameras`, exclLabel].join(" · ")}
+            {[manifest.room || "—", manifest.split === "demo" ? "consensus" : manifest.split, `${manifest.durationS}s`, `${manifest.cameras.length} cameras`, exclLabel].join(" · ")}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>

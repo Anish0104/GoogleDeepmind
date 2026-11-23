@@ -5,8 +5,16 @@ import path from "node:path";
 import { z } from "zod";
 import { LIMITS } from "@/lib/config";
 
-const FFMPEG = process.env.FFMPEG_PATH ?? "ffmpeg";
-const FFPROBE = process.env.FFPROBE_PATH ?? "ffprobe";
+function resolveBin(envVar: string | undefined, defaultName: string): string {
+  if (envVar) return envVar;
+  if (existsSync(`/opt/homebrew/bin/${defaultName}`)) return `/opt/homebrew/bin/${defaultName}`;
+  if (existsSync(`/usr/local/bin/${defaultName}`)) return `/usr/local/bin/${defaultName}`;
+  if (existsSync(`/usr/bin/${defaultName}`)) return `/usr/bin/${defaultName}`;
+  return defaultName;
+}
+
+const FFMPEG = resolveBin(process.env.FFMPEG_PATH, "ffmpeg");
+const FFPROBE = resolveBin(process.env.FFPROBE_PATH, "ffprobe");
 
 /** Clips sent to models are scaled down to this width. */
 const CLIP_MAX_WIDTH = 640;
