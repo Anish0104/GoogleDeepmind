@@ -577,7 +577,7 @@ export function NewInvestigation() {
               <p style={{ margin: "8px 0 0", fontSize: 13, color: C.dim, lineHeight: "19px" }}>
                 Only this part of the recordings is analysed, on the original timeline; the recordings themselves are not trimmed.
               </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,140px),1fr))", gap: 12, marginTop: 14 }}>
                 {([["Start (s)", winStart, setWinStart], ["End (s)", winEnd, setWinEnd]] as const).map(([label, v, set]) => (
                   <label key={label}>
                     <span className="rs-mono" style={LABEL}>{label}</span>
@@ -709,7 +709,7 @@ export function NewInvestigation() {
               <div className="rs-mono" style={{ marginTop: 6, fontSize: 12, color: C.dim }}>
                 SCENE {sceneId} · {cams.length} camera{cams.length === 1 ? "" : "s"} · {summary.claims} claim{summary.claims === 1 ? "" : "s"} · agents {steps.agents === "done" ? "complete" : "incomplete"}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 18 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,110px),1fr))", gap: 10, marginTop: 18 }}>
                 {([["Supported", C.green], ["Contradicted", C.coral], ["Insufficient", C.amber]] as const).map(([v, col]) => (
                   <div key={v} style={{ padding: "14px 12px", borderRadius: 14, background: "#0A0B0D", border: "1px solid rgba(236,230,218,0.08)" }}>
                     <div style={{ fontSize: 28, fontWeight: 500, color: col }}>{summary.counts[v]}</div>

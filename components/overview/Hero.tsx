@@ -155,7 +155,7 @@ export function Hero({
             margin: 0,
             maxWidth: 780,
             fontWeight: 400,
-            fontSize: "clamp(46px,6.8vw,92px)",
+            fontSize: "clamp(34px,6.2vw,92px)",
             lineHeight: 1.02,
             letterSpacing: "-0.03em",
             textWrap: "balance",

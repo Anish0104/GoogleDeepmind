@@ -62,7 +62,7 @@ export function Overview({
             Four stages, four owners, one contract in <span className="rs-mono" style={{ color: "#10B981" }}>lib/types.ts</span>.
           </p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,250px),1fr))", gap: 16 }}>
           {HOW.map((s) => (
             <div
               key={s.n}
