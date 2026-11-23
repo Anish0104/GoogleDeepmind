@@ -37,6 +37,9 @@ export async function listScenes(cwd: string = process.cwd()): Promise<string[]>
 export function resolveSceneDir(param: string | string[] | undefined): string {
   const v = Array.isArray(param) ? param[0] : param;
   if (!v) return DEFAULT_SCENE;
+  if (!v.includes("/") && !v.includes("\\") && !v.includes("..") && /^[A-Za-z0-9_-]+$/.test(v)) {
+    return `data/scenes/${v}`;
+  }
   const norm = path.posix.normalize(v.replace(/\\/g, "/")).replace(/\/+$/, "");
   const ok = ROOTS.some((r) => norm.startsWith(`${r}/`) && !norm.slice(r.length + 1).includes("/"));
   return ok && !norm.includes("..") ? norm : DEFAULT_SCENE;

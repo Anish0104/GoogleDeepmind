@@ -168,11 +168,30 @@ const isAbsent = (v: unknown) => v === undefined || v === null || v === "" || (A
  */
 export function wireToRaw(item: unknown): { raw: unknown } | { error: string } {
   if (typeof item !== "object" || item === null || !("actionKind" in item) || !("timeKind" in item)) return { raw: item };
-  const w = item as Record<string, unknown>;
-  const ak = w.actionKind as ActionKind;
+  const w = { ...(item as Record<string, unknown>) };
+  let ak = w.actionKind as ActionKind;
   const tk = w.timeKind as TimeKind;
   if (!(ak in ACTION_FIELDS)) return { error: `unknown actionKind ${String(w.actionKind)}` };
   if (!(tk in TIME_FIELDS)) return { error: `unknown timeKind ${String(w.timeKind)}` };
+
+  // Normalize actor/object for intransitive claims:
+  let actor = typeof w.actor === "string" ? w.actor.trim() : "";
+  let object = typeof w.object === "string" ? w.object.trim() : "";
+  if (object === "" && actor !== "") {
+    object = actor;
+    actor = "";
+  }
+
+  // Normalize actionKind when move has no zone:
+  if (ak === "move" && isAbsent(w.zone)) {
+    if (!isAbsent(w.stateValue)) {
+      ak = "state";
+    } else if (!isAbsent(w.verb)) {
+      ak = "state";
+      w.stateValue = w.verb;
+      delete w.verb;
+    }
+  }
 
   const allowedA = ACTION_FIELDS[ak] as readonly string[];
   for (const f of ALL_ACTION_FIELDS) if (!allowedA.includes(f) && !isAbsent(w[f])) return { error: `field "${f}" is not allowed for action "${ak}"` };
@@ -184,7 +203,7 @@ export function wireToRaw(item: unknown): { raw: unknown } | { error: string } {
     Object.fromEntries(keys.filter((k) => !isAbsent(w[k])).map((k) => [rename[k] ?? k, w[k]]));
   const action = { kind: ak, ...pick(allowedA, { stateValue: "value" }) };
   const time = { kind: tk, ...pick(allowedT) };
-  return { raw: { text: w.text, actor: w.actor, object: w.object, action, time, hedged: w.hedged } };
+  return { raw: { text: w.text, actor, object, action, time, hedged: w.hedged } };
 }
 
 // ---------- prompt ----------
@@ -195,7 +214,9 @@ Rules:
   Split compound sentences. Keep an action ("moved it to zone C") separate from an end state ("it was in zone C").
 - Stay faithful: use only people, objects, zones, times and actions the witness states. Never add details.
 - Use the witness's own words for actor and object, and the same words for the same thing every time.
-  If no person is named, actor is "". Never guess who someone is.
+  Every claim must name an object (the entity the assertion is about, e.g. "forklift", "worker", "box").
+  If an entity is in a state or acting on itself ("the worker was dodging", "the forklift was moving", "the vehicle stopped"),
+  the object is that entity ("worker", "forklift") and actor is "".
 - Never infer intent, motive, guilt, deception or emotion. Do not extract questions.
 - Extract every factual assertion the witness makes, even if it may be false or unlikely. Never drop,
   soften or "correct" a claim: whether it is true is decided later, from the video.
@@ -206,9 +227,13 @@ Rules:
   "relative" (anchor = index of the earlier claim) for "after/before/then"; "conflicting" if the witness
   gives several times for one event; "none" if no time is given. Never invent a time.
 - hedged = true if the witness is unsure ("I think", "maybe").
-- actionKind: move (to a zone; set "zone"), located (was in a zone; set "zone"), take (actor picked up/held),
-  give (handed to a named recipient; set "recipient"; the text must name them), state (opened/closed/tipped...;
-  set "stateValue"), other (set "verb").
+- actionKind:
+  - state (in a state, posture, or continuous motion: "moving", "stopped", "dodging", "touching worker", "near worker"; set "stateValue")
+  - move (specifically moving to a zone; set "zone")
+  - located (in a zone; set "zone")
+  - take (actor picked up/held)
+  - give (handed to a named recipient; set "recipient"; the text must name them)
+  - other (set "verb")
 - timeKind fields: exact/approx -> "t" (seconds); range -> "start","end"; relative -> "relation","anchor",
   optional "offsetS"; conflicting -> "times"; none -> nothing. Times like "00:09" mean 9 seconds.
 - Only fill the fields that belong to the chosen kinds.

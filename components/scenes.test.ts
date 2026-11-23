@@ -15,6 +15,7 @@ describe("listScenes", () => {
 describe("resolveSceneDir", () => {
   it("accepts scene folders under the two roots", () => {
     expect(resolveSceneDir("data/scenes/s-01")).toBe("data/scenes/s-01");
+    expect(resolveSceneDir("s-01")).toBe("data/scenes/s-01");
     expect(resolveSceneDir(["fixtures/replay/demo-001/"])).toBe("fixtures/replay/demo-001");
   });
 

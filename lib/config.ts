@@ -1,5 +1,17 @@
 // OWNER: Dev 2 owns THRESHOLDS (set on the dev set, frozen before the held-out run).
 // Dev 1 owns MODELS. Dev 3 owns LIMITS and paths.
+import { existsSync } from "node:fs";
+
+if (
+  typeof process !== "undefined" &&
+  typeof process.loadEnvFile === "function" &&
+  existsSync(".env.local") &&
+  process.env.NODE_ENV !== "test"
+) {
+  try {
+    process.loadEnvFile(".env.local");
+  } catch {}
+}
 
 const num = (value: string | undefined, fallback: number): number => {
   const parsed = Number(value);
@@ -21,7 +33,7 @@ export const THRESHOLDS = {
 
 export const MODELS = {
   SCOUT: process.env.MODEL_SCOUT ?? "gemini-4-hydrogen",
-  JUDGE: process.env.MODEL_JUDGE ?? "gemini-4-carbon",
+  JUDGE: process.env.MODEL_JUDGE ?? (process.env.GEMINI_TIER === "free" ? "gemini-4-hydrogen" : "gemini-4-carbon"),
   DECIDE: process.env.MODEL_DECIDE ?? "gemini-decision-1",
   BASELINE: process.env.MODEL_BASELINE ?? "gemini-4-neon",
   AGENT_ID: process.env.AGENT_ID ?? "antigravity-preview-05-2026",
