@@ -11,6 +11,7 @@ import { useTheme } from "@/components/site/ThemeContext";
 import { VERDICT_STYLE } from "@/components/verdictStyle";
 import { Hero } from "./Hero";
 import { exampleFor } from "./hud";
+import { TaglineReveal } from "./TaglineReveal";
 
 const SECTION = { position: "relative", zIndex: 2, margin: "0 auto" } as const;
 const H2 = { margin: 0, fontWeight: 400, fontSize: "clamp(42px,5.4vw,80px)", lineHeight: 1.02, letterSpacing: "-0.025em" } as const;
@@ -97,15 +98,7 @@ export function Overview({
         </div>
       </section>
 
-      <section style={{ ...SECTION, padding: "96px clamp(20px,5vw,72px)", display: "flex", justifyContent: "center" }}>
-        <p className="rs-serif" style={{ margin: 0, maxWidth: 740, fontSize: "clamp(34px,4.8vw,58px)", lineHeight: 1.2, fontWeight: 400, letterSpacing: "-0.02em", display: "flex", flexWrap: "wrap", columnGap: "0.26em", rowGap: 10 }}>
-          {TAGLINE.split(" ").map((w, i) => (
-            <span key={i} data-word="" style={{ color: isDark ? "#FAF8F5" : "#0A0C10", opacity: 0.28, transition: "opacity .6s cubic-bezier(.22,1,.36,1)" }}>
-              {w}
-            </span>
-          ))}
-        </p>
-      </section>
+      <TaglineReveal />
 
       <section style={{ ...SECTION, padding: "clamp(40px,8vh,100px) clamp(20px,5vw,72px)", maxWidth: 1320 }}>
         <div style={{ marginBottom: 56 }}>
