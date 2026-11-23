@@ -37,7 +37,7 @@ import type { Claim } from "@/lib/types";
 import { MODELS } from "@/lib/config";
 import { generateJson } from "@/lib/gemini/client";
 import { toZone } from "@/lib/inference/grid";
-import { ClaimExtractionError } from "@/lib/truth/errors";
+import { ClaimExtractionError, ClaimOutputError } from "@/lib/truth/errors";
 import {
   escapeBlock,
   infersMotive,
@@ -197,6 +197,11 @@ Rules:
 - Use the witness's own words for actor and object, and the same words for the same thing every time.
   If no person is named, actor is "". Never guess who someone is.
 - Never infer intent, motive, guilt, deception or emotion. Do not extract questions.
+- Extract every factual assertion the witness makes, even if it may be false or unlikely. Never drop,
+  soften or "correct" a claim: whether it is true is decided later, from the video.
+- Keep negation: "the forklift did not touch the worker" stays negative in "text" (never "touched");
+  its stateValue uses the witness's own words ("touch the worker").
+- If the account makes no factual assertion about the scene, return {"claims": []}.
 - Time: "exact" only for a stated exact second; "approx" for "about/around"; "range" for "between";
   "relative" (anchor = index of the earlier claim) for "after/before/then"; "conflicting" if the witness
   gives several times for one event; "none" if no time is given. Never invent a time.
@@ -381,21 +386,43 @@ export function parseClaimsResponse(
  * existing two-argument callers behave exactly as before.
  */
 export async function splitClaims(transcript: string, sceneId: string, options: ParseOptions = {}): Promise<Claim[]> {
+  return (await splitClaimsDetailed(transcript, sceneId, options)).claims;
+}
+
+/** splitClaims() plus the claims the model proposed that were rejected, with the reason for each. */
+export async function splitClaimsDetailed(transcript: string, sceneId: string, options: ParseOptions = {}): Promise<ParsedClaims> {
   if (typeof transcript !== "string") throw new ClaimExtractionError("transcript must be a string");
   if (typeof sceneId !== "string" || !SCENE_ID.test(sceneId)) throw new ClaimExtractionError(`invalid sceneId "${sceneId}"`);
   const { durationS } = options;
   if (durationS !== undefined && !(Number.isFinite(durationS) && durationS > 0))
     throw new ClaimExtractionError(`durationS must be finite and > 0, got ${durationS}`);
   const text = transcript.trim();
-  if (text === "") return [];
+  if (text === "") return { claims: [], rejected: [] };
   if (text.length > MAX_TRANSCRIPT_CHARS)
     throw new ClaimExtractionError(`transcript is ${text.length} chars; the limit is ${MAX_TRANSCRIPT_CHARS}`);
 
-  let response: unknown;
-  try {
-    response = await generateJson(MODELS.JUDGE, buildParts(text), ClaimsResponseSchema, { purpose: "claims", sceneId });
-  } catch (cause) {
-    throw new ClaimExtractionError("claim extraction failed at the model client", { cause });
+  // Transient HTTP errors are already retried inside generateJson(). A reply that is not valid JSON or does
+  // not match the schema gets exactly ONE more call (MAX_OUTPUT_ATTEMPTS); it is never read as "no claims".
+  let lastOutputError: unknown;
+  for (let attempt = 1; attempt <= MAX_OUTPUT_ATTEMPTS; attempt++) {
+    let response: unknown;
+    try {
+      response = await generateJson(MODELS.JUDGE, buildParts(text), ClaimsResponseSchema, { purpose: "claims", sceneId });
+    } catch (cause) {
+      if (!isOutputError(cause)) throw new ClaimExtractionError("claim extraction failed at the model client", { cause });
+      lastOutputError = cause;
+      continue;
+    }
+    try {
+      return parseClaimsResponse(response, text, sceneId, durationS === undefined ? {} : { durationS });
+    } catch (cause) {
+      if (!(cause instanceof ClaimExtractionError) || !/does not match the schema/.test(cause.message)) throw cause;
+      lastOutputError = cause;
+    }
   }
-  return parseClaimsResponse(response, text, sceneId, durationS === undefined ? {} : { durationS }).claims;
+  throw new ClaimOutputError(`the model's claims output was malformed ${MAX_OUTPUT_ATTEMPTS} times`, { cause: lastOutputError });
 }
+
+const MAX_OUTPUT_ATTEMPTS = 2;
+/** generateJson() reports unusable output with these messages (lib/gemini/client.ts). */
+const isOutputError = (e: unknown) => e instanceof Error && /model returned non-JSON output|model output failed schema/.test(e.message);

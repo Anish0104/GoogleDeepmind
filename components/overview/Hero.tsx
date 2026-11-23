@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Claim, ClaimResult } from "@/lib/types";
 import { type HeroVariant, drawHero, makeHeroState } from "@/components/canvas/drawHero";
 import { pct, winTxt } from "@/components/canvas/math";
-import { PlayGlyph } from "@/components/site/Nav";
 import { useSite } from "@/components/site/SiteStore";
 import { useCanvasLoop } from "@/components/site/useCanvasLoop";
 import { verdictStyle } from "@/components/verdictStyle";
@@ -150,15 +149,19 @@ export function Hero({
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 36 }}>
           <Link
-            href="/board"
+            href="/new"
             className="rs-btn rs-btn-primary rs-glow-btn"
             style={{ display: "flex", alignItems: "center", gap: 10, padding: "15px 26px", fontSize: 15 }}
           >
-            <PlayGlyph w={8} h={10} />
-            Open the board
+            <span aria-hidden style={{ fontSize: 18, lineHeight: "16px" }}>+</span>
+            New investigation
           </Link>
-          <Link href="/capture" className="rs-btn rs-btn-ghost" style={{ padding: "15px 26px", fontSize: 15, fontWeight: 500, color: "#ECE6DA" }}>
-            Start from capture →
+          <Link
+            href="/board"
+            className="rs-btn rs-btn-ghost"
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "15px 26px", fontSize: 15, fontWeight: 500, color: "#ECE6DA" }}
+          >
+            Watch the demo →
           </Link>
         </div>
       </div>

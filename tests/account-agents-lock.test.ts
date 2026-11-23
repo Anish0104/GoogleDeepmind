@@ -8,7 +8,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Claim } from "@/lib/types";
 
 const splitClaims = vi.fn<(transcript: string, sceneId: string) => Promise<Claim[]>>();
-vi.mock("@/lib/truth/claims", async (orig) => ({ ...(await orig<typeof import("@/lib/truth/claims")>()), splitClaims }));
+const splitClaimsDetailed = vi.fn(async (transcript: string, sceneId: string) => ({
+  claims: await splitClaims(transcript, sceneId),
+  rejected: [],
+}));
+vi.mock("@/lib/truth/claims", async (orig) => ({ ...(await orig<typeof import("@/lib/truth/claims")>()), splitClaims, splitClaimsDetailed }));
 vi.mock("@/lib/cost", async (orig) => ({ ...(await orig<typeof import("@/lib/cost")>()), assertBudget: async () => {} }));
 
 const SCENE = "lock1";
