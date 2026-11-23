@@ -187,15 +187,6 @@ export function Overview({
         </div>
       </section>
 
-      <section style={{ ...SECTION, padding: "clamp(60px,12vh,140px) clamp(20px,5vw,72px)", maxWidth: 1100, textAlign: "center" }}>
-        <div data-reveal="" className="rs-mono" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, letterSpacing: "0.14em", color: "#10B981", marginBottom: 28, fontWeight: 500 }}>
-          DATA INTEGRITY & PRIVACY
-        </div>
-        <p data-reveal="" className="rs-serif" style={{ margin: 0, fontSize: "clamp(32px,4vw,56px)", lineHeight: 1.25, letterSpacing: "-0.015em", textWrap: "balance", color: isDark ? "#FAF8F5" : "#0A0C10" }}>
-          Raw video stays on the local device. Only short validated clips <span style={{ color: "#10B981", fontStyle: "italic" }}>(4 seconds or less)</span> and low resolution stills go to the models. Zero face recognition.
-        </p>
-      </section>
-
       <section style={{ ...SECTION, padding: "clamp(60px,12vh,140px) clamp(20px,5vw,72px) 60px", maxWidth: 1320 }}>
         <div
           data-reveal=""
@@ -235,10 +226,6 @@ export function Overview({
               Capture walkthrough
             </Link>
           </div>
-        </div>
-        <div className="rs-mono" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, marginTop: 40, fontSize: 11, letterSpacing: "0.08em", color: "var(--text-muted)" }}>
-          <span>PRISM · Multi-Perspective Evidence Architecture</span>
-          <span>Local On-Device Privacy · Mathematical Consensus</span>
         </div>
       </section>
     </div>

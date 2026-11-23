@@ -149,27 +149,6 @@ export function Hero({
         }}
       />
       <div style={{ position: "relative", zIndex: 2, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 clamp(20px,5vw,72px) clamp(56px,10vh,110px)", maxWidth: 960 }}>
-        <div style={{ marginBottom: 24 }}>
-          <span
-            className="rs-mono"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "6px 16px",
-              borderRadius: 999,
-              background: isDark ? "rgba(48, 209, 88, 0.08)" : "rgba(48, 209, 88, 0.12)",
-              border: `1px solid ${isDark ? "rgba(48, 209, 88, 0.22)" : "rgba(48, 209, 88, 0.28)"}`,
-              color: isDark ? "#30D158" : "#248A3D",
-              fontSize: 11,
-              letterSpacing: "0.14em",
-              fontWeight: 600,
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#30D158", boxShadow: "0 0 10px #30D158", flex: "none" }} />
-            PHYSICAL GROUND TRUTH · MULTI-CAMERA CONSENSUS
-          </span>
-        </div>
         <h1
           className="rs-serif"
           style={{
