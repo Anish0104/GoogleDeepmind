@@ -4,6 +4,7 @@ import { EB_Garamond, Figtree, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import { SiteChrome } from "@/components/site/SiteChrome";
 import { SiteStoreProvider } from "@/components/site/SiteStore";
+import { ThemeProvider } from "@/components/site/ThemeContext";
 import "./globals.css";
 
 const serifFont = EB_Garamond({
@@ -38,11 +39,20 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${serifFont.variable} ${sansFont.variable} ${monoFont.variable}`}>
-      <body className="min-h-screen bg-[#08090B] text-[#ECECEC] antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
-        <SiteStoreProvider>
-          <SiteChrome>{children}</SiteChrome>
-        </SiteStoreProvider>
+    <html lang="en" suppressHydrationWarning className={`${serifFont.variable} ${sansFont.variable} ${monoFont.variable}`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('vera-theme')||'dark';document.documentElement.setAttribute('data-theme',t);if(document.body)document.body.setAttribute('data-theme',t);}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body className="min-h-screen antialiased selection:bg-emerald-500/30 selection:text-emerald-300">
+        <ThemeProvider>
+          <SiteStoreProvider>
+            <SiteChrome>{children}</SiteChrome>
+          </SiteStoreProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -58,7 +58,7 @@ export function ProofView({
             href={`/proof/${encodeURIComponent(c.id)}${sceneQuery}`}
             aria-current={on ? "page" : undefined}
             className="rs-mono rs-hover-border"
-            style={{ display: "flex", alignItems: "center", gap: 8, background: on && v ? v.bg : "transparent", border: `1px solid ${on && v ? v.border : "rgba(236,230,218,0.12)"}`, color: "#ECE6DA", borderRadius: 999, padding: "8px 14px", fontSize: 12 }}
+            style={{ display: "flex", alignItems: "center", gap: 8, background: on && v ? v.bg : "transparent", border: `1px solid ${on && v ? v.border : "var(--border-card)"}`, color: "var(--text-ink)", borderRadius: 999, padding: "8px 14px", fontSize: 12 }}
           >
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: v?.color ?? "#7D838C" }} />
             {c.id} · {c.object}
@@ -72,7 +72,7 @@ export function ProofView({
     return (
       <main style={{ position: "relative", zIndex: 2, padding: "88px clamp(16px,3vw,40px) 80px", maxWidth: 1400, margin: "0 auto" }}>
         {tabs}
-        <p style={{ color: "#9AA0A8" }}>No claim {claimId} in scene {sceneId}.</p>
+        <p style={{ color: "var(--text-muted)" }}>No claim {claimId} in scene {sceneId}.</p>
       </main>
     );
   }
@@ -85,11 +85,11 @@ export function ProofView({
       {tabs}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,520px),1fr))", gap: 24, alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>
-          <div className="rs-mono" style={{ fontSize: 12, letterSpacing: "0.1em", color: "#7D838C" }}>
+          <div className="rs-mono" style={{ fontSize: 12, letterSpacing: "0.1em", color: "var(--text-muted)" }}>
             {[claim.id, claim.actor, claim.action, claim.object, winTxt(claim.window)].join(" · ")}
             {claim.timeIsPrecise ? "" : " · approx"}
           </div>
-          <h1 className="rs-serif" style={{ margin: "14px 0 0", fontWeight: 400, fontSize: "clamp(38px,4.5vw,64px)", lineHeight: 1.1, letterSpacing: "-0.02em", textWrap: "balance", fontStyle: "italic", color: "#FAF8F5" }}>
+          <h1 className="rs-serif" style={{ margin: "14px 0 0", fontWeight: 400, fontSize: "clamp(38px,4.5vw,64px)", lineHeight: 1.1, letterSpacing: "-0.02em", textWrap: "balance", fontStyle: "italic", color: "var(--text-ink)" }}>
             &ldquo;{claim.text}&rdquo;
           </h1>
           {v && result && (
@@ -101,7 +101,7 @@ export function ProofView({
               >
                 {v.mark} {result.verdict}
               </div>
-              <div style={{ fontSize: 14, color: "#9AA0A8", maxWidth: 360, lineHeight: 1.5 }}>{v.long}</div>
+              <div style={{ fontSize: 14, color: "var(--text-body)", maxWidth: 360, lineHeight: 1.5 }}>{v.long}</div>
             </div>
           )}
           <ClipPlayer sceneId={claim.sceneId} evidence={evidence} selected={Math.min(clip, Math.max(0, evidence.length - 1))} onSelect={setClip} />
