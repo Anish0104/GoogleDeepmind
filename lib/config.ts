@@ -1,17 +1,5 @@
 // OWNER: Dev 2 owns THRESHOLDS (set on the dev set, frozen before the held-out run).
 // Dev 1 owns MODELS. Dev 3 owns LIMITS and paths.
-import { existsSync } from "node:fs";
-
-if (
-  typeof process !== "undefined" &&
-  typeof process.loadEnvFile === "function" &&
-  existsSync(".env.local") &&
-  process.env.NODE_ENV !== "test"
-) {
-  try {
-    process.loadEnvFile(".env.local");
-  } catch {}
-}
 
 const num = (value: string | undefined, fallback: number): number => {
   const parsed = Number(value);
