@@ -27,11 +27,11 @@ function CursorGlow() {
         position: "fixed",
         left: 0,
         top: 0,
-        width: 520,
-        height: 520,
-        margin: "-260px 0 0 -260px",
+        width: 560,
+        height: 560,
+        margin: "-280px 0 0 -280px",
         borderRadius: "50%",
-        background: "radial-gradient(circle,rgba(124,199,255,0.09),rgba(124,199,255,0) 65%)",
+        background: "radial-gradient(circle, rgba(16, 185, 129, 0.09), rgba(52, 211, 153, 0.03) 40%, rgba(16, 185, 129, 0) 70%)",
         pointerEvents: "none",
         zIndex: 1,
         transform: "translate(-999px,-999px)",
@@ -44,7 +44,7 @@ export function SiteChrome({ children, filmGrain = true }: { children: ReactNode
   const pathname = usePathname();
   if (!isSitePath(pathname)) return <>{children}</>;
   return (
-    <div data-site="" className="font-sans" style={{ position: "relative", minHeight: "100vh", background: "#000", color: "#ECE6DA" }}>
+    <div data-site="" className="font-sans" style={{ position: "relative", minHeight: "100vh", background: "#08090B", color: "#FAF8F5" }}>
       <CursorGlow />
       <Nav />
       {children}
@@ -55,7 +55,7 @@ export function SiteChrome({ children, filmGrain = true }: { children: ReactNode
           inset: 0,
           zIndex: 70,
           pointerEvents: "none",
-          opacity: filmGrain ? 0.16 : 0,
+          opacity: filmGrain ? 0.12 : 0,
           mixBlendMode: "overlay",
           backgroundImage: GRAIN,
         }}

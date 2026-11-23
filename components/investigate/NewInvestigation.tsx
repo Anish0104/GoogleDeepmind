@@ -23,16 +23,16 @@ import {
   waitForPerceived,
 } from "./api";
 
-const CARD = { border: "1px solid rgba(236,230,218,0.09)", borderRadius: 20, background: "#131209", padding: 24 } as const;
-const LABEL = { display: "block", fontSize: 13, color: "#9AA0A8", marginBottom: 8 } as const;
+const CARD = { border: "1px solid rgba(255,255,255,0.08)", borderRadius: 24, background: "rgba(15,17,23,0.65)", backdropFilter: "blur(20px)", padding: 26, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)" } as const;
+const LABEL = { display: "block", fontSize: 13, color: "#94A3B8", marginBottom: 8 } as const;
 const INPUT = {
   width: "100%",
   boxSizing: "border-box",
   padding: "12px 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(236,230,218,0.16)",
-  background: "#000",
-  color: "#ECE6DA",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(8,9,11,0.8)",
+  color: "#FAF8F5",
   fontSize: 15,
   fontFamily: "inherit",
 } as const;

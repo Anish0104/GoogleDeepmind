@@ -32,36 +32,36 @@ function HudCard({ sceneId, claims, results }: { sceneId: string; claims: Claim[
         zIndex: 3,
         right: "clamp(20px,4vw,64px)",
         bottom: "clamp(56px,10vh,110px)",
-        width: 340,
-        background: "rgba(10,12,16,0.62)",
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
-        border: "1px solid rgba(236,230,218,0.1)",
-        borderRadius: 16,
-        padding: "18px 20px",
-        boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
+        width: 360,
+        background: "rgba(15,17,23,0.72)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        border: "1px solid rgba(255,255,255,0.09)",
+        borderRadius: 20,
+        padding: "20px 22px",
+        boxShadow: "0 30px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)",
       }}
     >
-      <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", fontSize: 12, letterSpacing: "0.08em", color: "#7D838C" }}>
+      <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, letterSpacing: "0.08em", color: "#64748B" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF5A47" }} />
-          LIVE · {sceneId} · {claim.id}
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 8px #10B981" }} />
+          <span style={{ color: "#34D399", fontWeight: 600 }}>LIVE SYNC</span> · {sceneId} · {claim.id}
         </span>
-        <span>{winTxt(claim.window)}</span>
+        <span style={{ color: "#94A3B8" }}>{winTxt(claim.window)}</span>
       </div>
-      <div style={{ marginTop: 14, minHeight: 64, fontSize: 24, lineHeight: 1.2, color: "#ECE6DA" }}>
-        &ldquo;{typed}
+      <div className="rs-serif" style={{ marginTop: 14, minHeight: 68, fontSize: 22, lineHeight: 1.35, color: "#FAF8F5", fontStyle: "italic" }}>
+        &ldquo;{typed}&rdquo;
         {typed.length < claim.text.length && <span className="rs-caret" />}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, marginTop: 12 }}>
         {result.evidence.map((e, i) => (
-          <div key={i} className="rs-mono" style={{ fontSize: 12, color: "#9AA0A8" }}>
+          <div key={i} className="rs-mono" style={{ fontSize: 11, color: "#94A3B8" }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>CAM {e.camera}</span>
-              <span>vis {e.visible.toFixed(2)}</span>
+              <span style={{ color: "#FAF8F5" }}>vis {e.visible.toFixed(2)}</span>
             </div>
-            <div style={{ marginTop: 5, height: 3, background: "rgba(236,230,218,0.08)", borderRadius: 3, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: f.bars ? pct(e.visible) : "0%", background: "#ECE6DA", transition: "width .6s cubic-bezier(.22,1,.36,1)" }} />
+            <div style={{ marginTop: 5, height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: f.bars ? pct(e.visible) : "0%", background: "#34D399", transition: "width .6s cubic-bezier(.22,1,.36,1)" }} />
             </div>
           </div>
         ))}
@@ -71,12 +71,12 @@ function HudCard({ sceneId, claims, results }: { sceneId: string; claims: Claim[
           <div
             key={`${claim.id}-${Math.floor(tick / 125)}`}
             className="rs-mono"
-            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", border: `1.5px solid ${v.color}`, color: v.color, borderRadius: 6, fontSize: 13, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", animation: "rsStamp .45s cubic-bezier(.2,.9,.3,1.2) both", boxShadow: `0 0 24px ${v.glow}` }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 16px", border: `1.5px solid ${v.color}`, color: v.color, borderRadius: 999, fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", animation: "rsStamp .45s cubic-bezier(.2,.9,.3,1.2) both", boxShadow: `0 0 24px ${v.glow}` }}
           >
             {v.mark} {result.verdict}
           </div>
         ) : (
-          <div className="rs-mono" style={{ fontSize: 12, color: "#7D838C", letterSpacing: "0.08em" }}>
+          <div className="rs-mono" style={{ fontSize: 11, color: "#64748B", letterSpacing: "0.08em" }}>
             checking {result.evidence.length > 1 ? `${result.evidence.length} angles` : "the angles"}…
           </div>
         )}
@@ -114,44 +114,67 @@ export function Hero({
   return (
     <section style={{ position: "relative", height: "100vh", minHeight: 720, overflow: "hidden" }}>
       <canvas ref={ref} aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,rgba(6,7,9,0.94) 0%,rgba(6,7,9,0.6) 34%,rgba(6,7,9,0) 62%)", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 220, background: "linear-gradient(0deg,#060709,rgba(6,7,9,0))", pointerEvents: "none" }} />
-      <div style={{ position: "relative", zIndex: 2, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 clamp(20px,5vw,72px) clamp(56px,10vh,110px)", maxWidth: 900 }}>
-        <div className="rs-mono" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28, fontSize: 12, letterSpacing: "0.14em", color: "#9AA0A8" }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF5A47", boxShadow: "0 0 12px #FF5A47", flex: "none" }} />
-          GEMINI 4 NYC HACKATHON · ELEMENT 119
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,rgba(8,9,11,0.95) 0%,rgba(8,9,11,0.65) 36%,rgba(8,9,11,0) 65%)", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 220, background: "linear-gradient(0deg,#08090B,rgba(8,9,11,0))", pointerEvents: "none" }} />
+      <div style={{ position: "relative", zIndex: 2, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 clamp(20px,5vw,72px) clamp(56px,10vh,110px)", maxWidth: 960 }}>
+        <div style={{ marginBottom: 24 }}>
+          <span
+            className="rs-mono"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "5px 14px",
+              borderRadius: 999,
+              background: "rgba(16, 185, 129, 0.08)",
+              border: "1px solid rgba(16, 185, 129, 0.22)",
+              color: "#34D399",
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              fontWeight: 500,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 10px #10B981", flex: "none" }} />
+            GEMINI 4 NYC HACKATHON · MULTI-CAMERA PHYSICAL REASONING
+          </span>
         </div>
         <h1
+          className="rs-serif"
           style={{
             margin: 0,
-            maxWidth: 680,
-            fontWeight: 600,
-            fontSize: "clamp(48px,7vw,96px)",
-            lineHeight: 1,
-            letterSpacing: "-0.04em",
+            maxWidth: 780,
+            fontWeight: 400,
+            fontSize: "clamp(46px,6.8vw,92px)",
+            lineHeight: 1.02,
+            letterSpacing: "-0.03em",
             textWrap: "balance",
-            background: "linear-gradient(90deg,#FFFFFF,#9B9B9B)",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
+            color: "#FAF8F5",
           }}
         >
-          Four cameras.
+          Don&rsquo;t just recount what happened.
           <br />
-          One event.
-          <br />
-          Every claim checked.
+          <span
+            style={{
+              fontStyle: "italic",
+              fontWeight: 400,
+              background: "linear-gradient(90deg, #34D399 0%, #10B981 45%, #6EE7B7 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            Let the cameras prove it.
+          </span>
         </h1>
-        <p style={{ margin: "32px 0 0", maxWidth: 680, fontSize: 18, lineHeight: "28px", color: "#A9AEB5", textWrap: "pretty" }}>
-          Several phones film one event. RASHOMON checks each claim in a person&rsquo;s spoken account against the footage and labels it{" "}
-          <span style={{ color: "#5BE49B" }}>Supported</span>, <span style={{ color: "#FF5A47" }}>Contradicted by visible evidence</span>, or{" "}
-          <span style={{ color: "#FFC23D" }}>Insufficient footage</span>. It labels claims, never people.
+        <p style={{ margin: "26px 0 0", maxWidth: 660, fontSize: 17, lineHeight: "28px", color: "#94A3B8", textWrap: "pretty" }}>
+          Multiple phones film one event. Our perceptual reasoning system checks each claim in a person&rsquo;s spoken account against synchronized footage and labels it{" "}
+          <span style={{ color: "#34D399", fontWeight: 500 }}>Supported</span>, <span style={{ color: "#F43F5E", fontWeight: 500 }}>Contradicted by visible evidence</span>, or{" "}
+          <span style={{ color: "#FBBF24", fontWeight: 500 }}>Insufficient footage</span>. It labels claims, never people.
         </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 36 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 34 }}>
           <Link
             href="/new"
             className="rs-btn rs-btn-primary rs-glow-btn"
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "15px 26px", fontSize: 15 }}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 28px", fontSize: 14, fontWeight: 600 }}
           >
             <span aria-hidden style={{ fontSize: 18, lineHeight: "16px" }}>+</span>
             New investigation
@@ -159,14 +182,14 @@ export function Hero({
           <Link
             href="/board"
             className="rs-btn rs-btn-ghost"
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "15px 26px", fontSize: 15, fontWeight: 500, color: "#ECE6DA" }}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 28px", fontSize: 14, fontWeight: 500, color: "#FAF8F5" }}
           >
             Watch the demo →
           </Link>
         </div>
       </div>
       <HudCard sceneId={sceneId} claims={claims} results={results} />
-      <div className="rs-mono" style={{ position: "absolute", zIndex: 3, left: "50%", bottom: 22, transform: "translateX(-50%)", fontSize: 10, letterSpacing: "0.3em", color: "#5E646D" }}>
+      <div className="rs-mono" style={{ position: "absolute", zIndex: 3, left: "50%", bottom: 22, transform: "translateX(-50%)", fontSize: 10, letterSpacing: "0.3em", color: "#475569" }}>
         SCROLL
       </div>
     </section>

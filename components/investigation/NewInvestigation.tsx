@@ -30,8 +30,8 @@ const QUESTION_SETS = [
   { value: "", label: "General investigation", help: "No fixed questions: the system discovers what to ask from the footage." },
 ] as const;
 
-const C = { text: "#ECE6DA", muted: "#9AA0A8", dim: "#7D838C", faint: "#5E646D", coral: "#FF5A47", blue: "#7CC7FF", green: "#5BE49B", amber: "#FFC23D" };
-const CARD = { border: "1px solid rgba(236,230,218,0.09)", borderRadius: 20, background: "#131209", padding: 24 } as const;
+const C = { text: "#FAF8F5", muted: "#94A3B8", dim: "#64748B", faint: "#334155", coral: "#F43F5E", blue: "#38BDF8", green: "#34D399", amber: "#FBBF24" };
+const CARD = { border: "1px solid rgba(255,255,255,0.08)", borderRadius: 24, background: "rgba(15,17,23,0.65)", backdropFilter: "blur(20px)", padding: 26, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)" } as const;
 const LABEL = { fontSize: 11, letterSpacing: "0.14em", color: C.dim, textTransform: "uppercase" } as const;
 const INPUT = { width: "100%", boxSizing: "border-box", background: "#0A0B0D", color: C.text, border: "1px solid rgba(236,230,218,0.14)", borderRadius: 12, padding: "12px 14px", fontSize: 15, fontFamily: "inherit", outline: "none" } as const;
 

@@ -17,13 +17,13 @@ const EASE = "cubic-bezier(.22,1,.36,1)";
 export function Logo({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 26 26" fill="none" aria-hidden>
-      <g stroke="#ECE6DA" strokeWidth="1.6" strokeLinecap="round">
+      <g stroke="#FAF8F5" strokeWidth="1.6" strokeLinecap="round">
         <path d="M2 3 L13 13" />
         <path d="M24 3 L13 13" />
         <path d="M2 23 L13 13" opacity="0.55" />
         <path d="M24 23 L13 13" opacity="0.3" />
       </g>
-      <circle cx="13" cy="13" r="3.2" fill="#FF5A47" />
+      <circle cx="13" cy="13" r="3.2" fill="#10B981" />
     </svg>
   );
 }
@@ -35,7 +35,7 @@ function PlayGlyph({ w = 7, h = 9 }: { w?: number; h?: number }) {
       style={{
         width: 0,
         height: 0,
-        borderLeft: `${w}px solid #060709`,
+        borderLeft: `${w}px solid #08090B`,
         borderTop: `${h / 2}px solid transparent`,
         borderBottom: `${h / 2}px solid transparent`,
       }}
@@ -57,21 +57,21 @@ function LiveChip() {
         height: 36,
         padding: "0 12px",
         borderRadius: 999,
-        background: "#000",
-        border: "1px solid rgba(236,230,218,0.08)",
+        background: "rgba(10,12,16,0.75)",
+        border: "1px solid rgba(255,255,255,0.08)",
         fontSize: 12,
         lineHeight: "16px",
       }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF5A47", animation: `rsPulse 1.6s ${EASE} infinite` }} />
-      <span style={{ color: "#7D838C" }}>demo 001</span>
-      <span style={{ color: "#ECE6DA", minWidth: 64 }}>{time}</span>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", animation: `rsPulse 1.8s ${EASE} infinite` }} />
+      <span style={{ color: "#94A3B8" }}>demo 001</span>
+      <span style={{ color: "#FAF8F5", minWidth: 64 }}>{time}</span>
       <span style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 12 }}>
         {(["A", "B", "C", "D"] as CameraId[]).map((c, i) => {
           const off = excluded.includes(c);
           const inspecting = ins?.camera === c;
           const h = off ? 3 : inspecting ? 12 : 5 + Math.round(4 * Math.abs(Math.sin(T * 2 + i * 1.3)));
-          const color = off ? "#5E646D" : inspecting && ins ? AGENT_COLOR[ins.step.agent] : "#ECE6DA";
+          const color = off ? "#475569" : inspecting && ins ? AGENT_COLOR[ins.step.agent] : "#34D399";
           return (
             <span
               key={c}
@@ -99,7 +99,7 @@ export function Nav() {
   useEffect(() => setMenuOpen(false), [pathname]);
 
   const divider = (cls: string) => (
-    <span className={cls} style={{ width: 1, height: 20, background: "rgba(236,230,218,0.12)" }} />
+    <span className={cls} style={{ width: 1, height: 20, background: "rgba(255,255,255,0.08)" }} />
   );
 
   return (
@@ -117,11 +117,11 @@ export function Nav() {
             gap: 8,
             padding: 6,
             borderRadius: 999,
-            background: scrolled ? "rgba(10,11,13,0.82)" : "rgba(14,15,18,0.55)",
-            backdropFilter: "blur(28px) saturate(170%)",
-            WebkitBackdropFilter: "blur(28px) saturate(170%)",
-            border: "1px solid rgba(236,230,218,0.11)",
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07),0 24px 70px rgba(0,0,0,0.6),0 0 0 1px rgba(0,0,0,0.5)",
+            background: scrolled ? "rgba(9,10,13,0.88)" : "rgba(12,14,18,0.68)",
+            backdropFilter: "blur(28px) saturate(180%)",
+            WebkitBackdropFilter: "blur(28px) saturate(180%)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.55), 0 0 40px rgba(16,185,129,0.06)",
             overflow: "hidden",
             transform: scrolled ? "scale(0.97)" : "none",
             transition: `transform .5s ${EASE},background .3s ${EASE}`,
@@ -129,25 +129,25 @@ export function Nav() {
         >
           <span
             aria-hidden
-            style={{ position: "absolute", top: 0, left: 0, width: 180, height: 1, background: "linear-gradient(90deg,rgba(124,199,255,0),rgba(124,199,255,0.95),rgba(124,199,255,0))", animation: `rsSweep 7s ${EASE} infinite`, pointerEvents: "none" }}
+            style={{ position: "absolute", top: 0, left: 0, width: 180, height: 1, background: "linear-gradient(90deg,rgba(52,211,153,0),rgba(52,211,153,0.9),rgba(52,211,153,0))", animation: `rsSweep 7s ${EASE} infinite`, pointerEvents: "none" }}
           />
           <span
             aria-hidden
-            style={{ position: "absolute", bottom: 0, right: 0, width: 120, height: 1, background: "linear-gradient(90deg,rgba(255,90,71,0),rgba(255,90,71,0.7),rgba(255,90,71,0))", animation: `rsSweepR 9s ${EASE} infinite`, pointerEvents: "none" }}
+            style={{ position: "absolute", bottom: 0, right: 0, width: 120, height: 1, background: "linear-gradient(90deg,rgba(16,185,129,0),rgba(16,185,129,0.6),rgba(16,185,129,0))", animation: `rsSweepR 9s ${EASE} infinite`, pointerEvents: "none" }}
           />
           <Link
             href="/"
-            aria-label="RASHOMON home"
-            style={{ display: "flex", alignItems: "center", gap: 12, color: "#ECE6DA", padding: "0 12px 0 0", height: 36, borderRadius: 999 }}
+            aria-label="VERA home"
+            style={{ display: "flex", alignItems: "center", gap: 12, color: "#FAF8F5", padding: "0 12px 0 0", height: 36, borderRadius: 999 }}
           >
             <span
-              style={{ position: "relative", width: 36, height: 36, borderRadius: "50%", background: "#000", border: "1px solid rgba(236,230,218,0.14)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 12px rgba(124,199,255,0.12)" }}
+              style={{ position: "relative", width: 36, height: 36, borderRadius: "50%", background: "#08090B", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 12px rgba(16,185,129,0.15)" }}
             >
               <Logo />
             </span>
             <span className="hidden min-[520px]:flex" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2, lineHeight: 1 }}>
-              <span className="rs-mono" style={{ fontWeight: 600, letterSpacing: "0.32em", fontSize: 12 }}>RASHOMON</span>
-              <span className="rs-mono" style={{ fontSize: 9, letterSpacing: "0.18em", color: "#7D838C" }}>EVIDENCE ENGINE</span>
+              <span className="rs-mono" style={{ fontWeight: 600, letterSpacing: "0.28em", fontSize: 12 }}>VERA</span>
+              <span className="rs-mono" style={{ fontSize: 9, letterSpacing: "0.16em", color: "#64748B" }}>EVIDENCE ENGINE</span>
             </span>
           </Link>
           {divider("hidden min-[880px]:block")}
@@ -161,17 +161,17 @@ export function Nav() {
                 width: 96,
                 height: 36,
                 borderRadius: 999,
-                background: "rgba(236,230,218,0.08)",
-                border: "1px solid rgba(236,230,218,0.14)",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)",
                 boxSizing: "border-box",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08),0 0 24px rgba(124,199,255,0.1)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 20px rgba(16,185,129,0.1)",
                 transform: `translateX(${Math.max(0, idx) * 96}px)`,
                 opacity: idx < 0 ? 0 : 1,
                 transition: `transform .5s ${EASE}, opacity .3s ${EASE}`,
                 pointerEvents: "none",
               }}
             >
-              <span style={{ position: "absolute", left: "50%", bottom: -1, width: 16, height: 2, marginLeft: -8, borderRadius: 2, background: "#7CC7FF", boxShadow: "0 0 10px #7CC7FF" }} />
+              <span style={{ position: "absolute", left: "50%", bottom: -1, width: 16, height: 2, marginLeft: -8, borderRadius: 2, background: "#34D399", boxShadow: "0 0 10px #34D399" }} />
             </span>
             {NAV_ITEMS.map((item, i) => (
               <Link
@@ -189,7 +189,7 @@ export function Nav() {
                   fontSize: 14,
                   lineHeight: "20px",
                   fontWeight: 500,
-                  color: i === idx ? "#ECE6DA" : "#8A9099",
+                  color: i === idx ? "#FAF8F5" : "#94A3B8",
                   borderRadius: 999,
                   transition: `color .3s ${EASE}`,
                 }}
@@ -203,7 +203,7 @@ export function Nav() {
           <Link
             href="/new"
             className="rs-cta-btn"
-            style={{ display: "flex", alignItems: "center", gap: 8, height: 36, background: "#ECE6DA", color: "#060709", border: 0, borderRadius: 999, padding: "0 16px", fontSize: 14, lineHeight: "20px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+            style={{ display: "flex", alignItems: "center", gap: 8, height: 36, background: "#FAF8F5", color: "#08090B", border: 0, borderRadius: 999, padding: "0 16px", fontSize: 14, lineHeight: "20px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
           >
             <span aria-hidden style={{ fontSize: 16, lineHeight: "16px", marginTop: -1 }}>+</span>
             <span className="hidden min-[400px]:inline">New investigation</span>
@@ -215,10 +215,10 @@ export function Nav() {
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             className="flex min-[880px]:hidden"
-            style={{ position: "relative", width: 36, height: 36, borderRadius: "50%", border: "1px solid rgba(236,230,218,0.16)", background: "#000", cursor: "pointer", alignItems: "center", justifyContent: "center", flex: "none" }}
+            style={{ position: "relative", width: 36, height: 36, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.12)", background: "#08090B", cursor: "pointer", alignItems: "center", justifyContent: "center", flex: "none" }}
           >
             {[menuOpen ? "rotate(45deg)" : "translateY(-3px)", menuOpen ? "rotate(-45deg)" : "translateY(3px)"].map((tf, i) => (
-              <span key={i} style={{ position: "absolute", left: 10, width: 14, height: 1.5, background: "#ECE6DA", borderRadius: 1, transform: tf, transition: `transform .5s ${EASE}` }} />
+              <span key={i} style={{ position: "absolute", left: 10, width: 14, height: 1.5, background: "#FAF8F5", borderRadius: 1, transform: tf, transition: `transform .5s ${EASE}` }} />
             ))}
           </button>
         </div>
@@ -230,7 +230,7 @@ export function Nav() {
           position: "fixed",
           inset: 0,
           zIndex: 54,
-          background: "rgba(0,0,0,0.92)",
+          background: "rgba(8,9,11,0.95)",
           backdropFilter: "blur(30px)",
           WebkitBackdropFilter: "blur(30px)",
           opacity: menuOpen ? 1 : 0,
@@ -255,7 +255,7 @@ export function Nav() {
               lineHeight: "40px",
               fontWeight: 600,
               letterSpacing: "-0.02em",
-              color: i === idx ? "#ECE6DA" : "#8A9099",
+              color: i === idx ? "#FAF8F5" : "#94A3B8",
               opacity: menuOpen ? 1 : 0,
               transform: menuOpen ? "none" : "translateY(24px)",
               transition: `opacity .5s ${EASE} ${menuOpen ? i * 60 : 0}ms,transform .5s ${EASE} ${menuOpen ? i * 60 : 0}ms`,
@@ -268,7 +268,7 @@ export function Nav() {
           href="/new"
           tabIndex={menuOpen ? 0 : -1}
           onClick={() => setMenuOpen(false)}
-          style={{ marginTop: 16, padding: "8px 0", fontSize: 20, fontWeight: 500, color: "#7CC7FF", opacity: menuOpen ? 1 : 0, transition: `opacity .5s ${EASE}` }}
+          style={{ marginTop: 16, padding: "8px 0", fontSize: 20, fontWeight: 500, color: "#34D399", opacity: menuOpen ? 1 : 0, transition: `opacity .5s ${EASE}` }}
         >
           + New investigation
         </Link>

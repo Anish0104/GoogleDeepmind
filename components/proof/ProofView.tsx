@@ -12,7 +12,7 @@ import { AGENT_COLOR, SOURCE_COLOR, verdictStyle } from "@/components/verdictSty
 import { ClipPlayer } from "./ClipPlayer";
 import { clockTime } from "./format";
 
-const CARD = { border: "1px solid rgba(236,230,218,0.09)", borderRadius: 18, background: "#131209", padding: 22 } as const;
+const CARD = { border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, background: "rgba(15,17,23,0.65)", backdropFilter: "blur(20px)", padding: 24, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)" } as const;
 
 function Bar({ name, value, color, threshold }: { name: string; value: number | null; color: string; threshold: number }) {
   return (
@@ -89,7 +89,7 @@ export function ProofView({
             {[claim.id, claim.actor, claim.action, claim.object, winTxt(claim.window)].join(" · ")}
             {claim.timeIsPrecise ? "" : " · approx"}
           </div>
-          <h1 style={{ margin: "14px 0 0", fontWeight: 400, fontSize: "clamp(40px,4.6vw,68px)", lineHeight: 1.04, letterSpacing: "-0.015em", textWrap: "balance" }}>
+          <h1 className="rs-serif" style={{ margin: "14px 0 0", fontWeight: 400, fontSize: "clamp(38px,4.5vw,64px)", lineHeight: 1.1, letterSpacing: "-0.02em", textWrap: "balance", fontStyle: "italic", color: "#FAF8F5" }}>
             &ldquo;{claim.text}&rdquo;
           </h1>
           {v && result && (

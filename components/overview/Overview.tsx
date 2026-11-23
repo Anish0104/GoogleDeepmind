@@ -12,22 +12,22 @@ import { Hero } from "./Hero";
 import { exampleFor } from "./hud";
 
 const SECTION = { position: "relative", zIndex: 2, margin: "0 auto" } as const;
-const H2 = { margin: 0, fontWeight: 400, fontSize: "clamp(44px,5.6vw,84px)", lineHeight: 0.98, letterSpacing: "-0.02em" } as const;
+const H2 = { margin: 0, fontWeight: 400, fontSize: "clamp(42px,5.4vw,80px)", lineHeight: 1.02, letterSpacing: "-0.025em" } as const;
 
 const HOW = [
-  { n: "01", color: "#ECE6DA", title: "Capture and sync", body: "4 phones record around a mat with zones A–F; a clap and a screen flash line them up.", chips: ["clap + flash", "≤ 4 s clips"] },
-  { n: "02", color: "#7CC7FF", title: "Evidence", body: "Gemini 4 Hydrogen lists objects and yes/no questions; the Gemini Decisions API answers every question for every camera and half-second slice with a probability.", chips: ["gemini-4-hydrogen", "gemini-decision-1"] },
-  { n: "03", color: "#5BE49B", title: "Labels", body: "Fixed TypeScript rules in verdict() turn per-camera evidence into a label. Contradicted is the hardest label to get. Gemini 4 Carbon splits the spoken account into claims and writes a cited timeline.", chips: ["verdict()", "gemini-4-carbon"] },
-  { n: "04", color: "#B79CFF", title: "Agents", body: "Two Gemini Managed Agents pick extra clips to check. The Investigator settles undecided claims; the Skeptic can only downgrade a label. Neither agent ever sets one.", chips: ["Investigator", "Skeptic"] },
+  { n: "01", color: "#FAF8F5", title: "Capture & sync", body: "4 phones record around a mat with zones A–F; an acoustic clap and screen flash line them up to sub-frame precision.", chips: ["acoustic clap + flash", "≤ 4 s clips"] },
+  { n: "02", color: "#34D399", title: "Evidence synthesis", body: "Gemini lists critical entities and yes/no visual questions; the Gemini Decisions API evaluates every camera angle and half-second slice with calibrated probability.", chips: ["hydrogen", "decision-1"] },
+  { n: "03", color: "#10B981", title: "Grounded labels", body: "Deterministic rules in verdict() evaluate cross-camera evidence into mathematical labels. Contradicted requires absolute consensus. Carbon extracts claims into cited timestamps.", chips: ["verdict()", "carbon"] },
+  { n: "04", color: "#A78BFA", title: "Autonomous agents", body: "Two Gemini Managed Agents inspect edge clips. The Investigator settles undecided claims; the Skeptic seeks falsifying footage to challenge preliminary verdicts.", chips: ["Investigator", "Skeptic"] },
 ];
 
 const TILES: { v: Verdict; name: string; rule: string }[] = [
-  { v: "Supported", name: "Supported", rule: "Usable cameras (visibility ≥ 0.60) agree and the support score reaches 0.80." },
-  { v: "Contradicted", name: "Contradicted by visible evidence", rule: "The contradict score must reach 0.90. It is the hardest label to get." },
-  { v: "Insufficient", name: "Insufficient footage", rule: "No usable view at the key moment, or the evidence clears neither bar." },
+  { v: "Supported", name: "Supported", rule: "All usable cameras (visibility ≥ 0.60) reach consensus and the affirmative support score clears 0.80." },
+  { v: "Contradicted", name: "Contradicted by footage", rule: "The contradict score reaches 0.90 across unoccluded viewpoints. The most rigorous label to attain." },
+  { v: "Insufficient", name: "Insufficient footage", rule: "Key occlusions obscure the critical moment, or camera evidence clears neither threshold." },
 ];
 
-const TAGLINE = "Many angles on one moment. Each claim gets the label the footage supports, and never a verdict on the person.";
+const TAGLINE = "Many angles on one moment. Each claim gets the label the footage mathematically proves, and never a verdict on the person.";
 
 export function Overview({
   variant,
@@ -49,25 +49,42 @@ export function Overview({
 
       <section style={{ ...SECTION, padding: "clamp(80px,14vh,160px) clamp(20px,5vw,72px)", maxWidth: 1320 }}>
         <div data-reveal="" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: 24, marginBottom: 64 }}>
-          <h2 style={{ ...H2, maxWidth: 760 }}>How a claim gets its label</h2>
-          <p style={{ margin: 0, maxWidth: 360, color: "#9AA0A8", fontSize: 15, lineHeight: 1.6 }}>
-            Four stages, four owners, one contract in <span className="rs-mono" style={{ color: "#ECE6DA" }}>lib/types.ts</span>.
+          <div>
+            <span className="rs-mono" style={{ display: "inline-block", fontSize: 11, letterSpacing: "0.14em", color: "#34D399", marginBottom: 16, fontWeight: 500 }}>
+              VERIFICATION ARCHITECTURE
+            </span>
+            <h2 className="rs-serif" style={{ ...H2, maxWidth: 760, color: "#FAF8F5" }}>How a claim gets its label</h2>
+          </div>
+          <p style={{ margin: 0, maxWidth: 360, color: "#94A3B8", fontSize: 15, lineHeight: 1.6 }}>
+            Four stages, four owners, one contract in <span className="rs-mono" style={{ color: "#34D399" }}>lib/types.ts</span>.
           </p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 1, background: "rgba(236,230,218,0.08)", border: "1px solid rgba(236,230,218,0.08)", borderRadius: 20, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 16 }}>
           {HOW.map((s) => (
-            <div key={s.n} data-reveal="" className="rs-hover-raise" style={{ background: "#131209", padding: "32px 28px 36px", display: "flex", flexDirection: "column", gap: 18, minHeight: 340 }}>
+            <div
+              key={s.n}
+              data-reveal=""
+              className="rs-hover-raise rs-card"
+              style={{
+                borderRadius: 24,
+                padding: "32px 28px 36px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 18,
+                minHeight: 340,
+              }}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span className="rs-mono" style={{ fontSize: 12, color: s.color }}>{s.n}</span>
-                <span style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid rgba(236,230,218,0.14)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, boxShadow: `0 0 14px ${s.color}` }} />
+                <span className="rs-mono" style={{ fontSize: 12, color: s.color, fontWeight: 600 }}>{s.n}</span>
+                <span style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.03)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.color, boxShadow: `0 0 12px ${s.color}` }} />
                 </span>
               </div>
-              <h3 style={{ margin: "24px 0 0", fontSize: 26, fontWeight: 500, letterSpacing: "-0.02em" }}>{s.title}</h3>
-              <p style={{ margin: 0, color: "#9AA0A8", fontSize: 15, lineHeight: 1.6, textWrap: "pretty", flex: 1 }}>{s.body}</p>
+              <h3 className="rs-serif" style={{ margin: "20px 0 0", fontSize: 28, fontWeight: 500, letterSpacing: "-0.02em", color: "#FAF8F5" }}>{s.title}</h3>
+              <p style={{ margin: 0, color: "#94A3B8", fontSize: 15, lineHeight: 1.6, textWrap: "pretty", flex: 1 }}>{s.body}</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {s.chips.map((c) => (
-                  <span key={c} className="rs-mono" style={{ fontSize: 12, color: "#C9C2B4", border: "1px solid rgba(236,230,218,0.14)", borderRadius: 999, padding: "4px 10px" }}>
+                  <span key={c} className="rs-mono" style={{ fontSize: 11, color: "#E2E8F0", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", borderRadius: 999, padding: "4px 10px" }}>
                     {c}
                   </span>
                 ))}
@@ -78,9 +95,9 @@ export function Overview({
       </section>
 
       <section style={{ ...SECTION, padding: "96px clamp(20px,5vw,72px)", display: "flex", justifyContent: "center" }}>
-        <p style={{ margin: 0, maxWidth: 680, fontSize: "clamp(36px,5vw,60px)", lineHeight: 1, fontWeight: 600, letterSpacing: "-0.03em", display: "flex", flexWrap: "wrap", columnGap: "0.26em", rowGap: 8 }}>
+        <p className="rs-serif" style={{ margin: 0, maxWidth: 740, fontSize: "clamp(34px,4.8vw,58px)", lineHeight: 1.2, fontWeight: 400, letterSpacing: "-0.02em", display: "flex", flexWrap: "wrap", columnGap: "0.26em", rowGap: 10 }}>
           {TAGLINE.split(" ").map((w, i) => (
-            <span key={i} data-word="" style={{ color: "#ECE6DA", opacity: 0.3, transition: "opacity .6s cubic-bezier(.22,1,.36,1)" }}>
+            <span key={i} data-word="" style={{ color: "#FAF8F5", opacity: 0.28, transition: "opacity .6s cubic-bezier(.22,1,.36,1)" }}>
               {w}
             </span>
           ))}
@@ -88,27 +105,32 @@ export function Overview({
       </section>
 
       <section style={{ ...SECTION, padding: "clamp(40px,8vh,100px) clamp(20px,5vw,72px)", maxWidth: 1320 }}>
-        <h2 data-reveal="" style={{ ...H2, margin: "0 0 56px", maxWidth: 900 }}>
-          Three labels. <span style={{ color: "#9AA0A8" }}>None of them about a person.</span>
-        </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,300px),1fr))", gap: 16 }}>
+        <div style={{ marginBottom: 56 }}>
+          <span className="rs-mono" style={{ display: "inline-block", fontSize: 11, letterSpacing: "0.14em", color: "#34D399", marginBottom: 16, fontWeight: 500 }}>
+            EVIDENCE TAXONOMY
+          </span>
+          <h2 className="rs-serif" data-reveal="" style={{ ...H2, maxWidth: 900, color: "#FAF8F5" }}>
+            Three labels. <span style={{ color: "#64748B", fontStyle: "italic" }}>None of them about a person.</span>
+          </h2>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,300px),1fr))", gap: 20 }}>
           {TILES.map((t) => {
             const s = VERDICT_STYLE[t.v];
             const ex = exampleFor(t.v, claims, results);
             return (
-              <div key={t.v} data-reveal="" className="rs-tile" style={{ position: "relative", overflow: "hidden", border: "1px solid rgba(236,230,218,0.09)", borderRadius: 20, padding: 32, background: "#131209", display: "flex", flexDirection: "column", gap: 20, minHeight: 380 }}>
-                <div aria-hidden style={{ position: "absolute", right: -30, top: -60, fontSize: 300, lineHeight: 1, color: s.color, opacity: 0.09, pointerEvents: "none" }}>
+              <div key={t.v} data-reveal="" className="rs-tile rs-card" style={{ position: "relative", overflow: "hidden", borderRadius: 24, padding: 34, display: "flex", flexDirection: "column", gap: 20, minHeight: 380 }}>
+                <div aria-hidden style={{ position: "absolute", right: -24, top: -50, fontSize: 260, lineHeight: 1, color: s.color, opacity: 0.07, pointerEvents: "none" }}>
                   {s.mark}
                 </div>
-                <div className="rs-mono" style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 8, padding: "6px 12px", border: `1.5px solid ${s.color}`, color: s.color, borderRadius: 6, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                <div className="rs-mono" style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 8, padding: "6px 14px", border: `1.5px solid ${s.color}`, color: s.color, borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", background: "rgba(0,0,0,0.3)" }}>
                   {s.mark} {t.v}
                 </div>
-                <h3 style={{ margin: "8px 0 0", fontSize: 30, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.1 }}>{t.name}</h3>
-                <p style={{ margin: 0, color: "#9AA0A8", fontSize: 15, lineHeight: 1.6 }}>{t.rule}</p>
+                <h3 className="rs-serif" style={{ margin: "6px 0 0", fontSize: 32, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.15, color: "#FAF8F5" }}>{t.name}</h3>
+                <p style={{ margin: 0, color: "#94A3B8", fontSize: 15, lineHeight: 1.6 }}>{t.rule}</p>
                 {ex && (
-                  <div style={{ marginTop: "auto", paddingTop: 20, borderTop: "1px solid rgba(236,230,218,0.08)" }}>
-                    <div style={{ fontSize: 20, lineHeight: 1.3 }}>&ldquo;{ex.claim}&rdquo;</div>
-                    <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: "#8A9099" }}>{ex.reason}</div>
+                  <div style={{ marginTop: "auto", paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="rs-serif" style={{ fontSize: 20, lineHeight: 1.35, color: "#FAF8F5", fontStyle: "italic" }}>&ldquo;{ex.claim}&rdquo;</div>
+                    <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: "#64748B" }}>{ex.reason}</div>
                   </div>
                 )}
               </div>
@@ -120,37 +142,41 @@ export function Overview({
       <section style={{ ...SECTION, padding: "clamp(60px,12vh,140px) clamp(20px,5vw,72px)", maxWidth: 1320 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,460px),1fr))", gap: 56, alignItems: "center" }}>
           <div data-reveal="">
-            <div className="rs-mono" style={{ fontSize: 12, letterSpacing: "0.14em", color: "#B79CFF", marginBottom: 20 }}>MANAGED AGENTS</div>
-            <h2 style={{ ...H2, fontSize: "clamp(44px,5.2vw,76px)", lineHeight: 1 }}>
+            <div style={{ marginBottom: 18 }}>
+              <span className="rs-mono" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "4px 12px", borderRadius: 999, background: "rgba(167, 139, 250, 0.1)", border: "1px solid rgba(167, 139, 250, 0.25)", color: "#A78BFA", fontSize: 11, letterSpacing: "0.14em", fontWeight: 500 }}>
+                MANAGED REASONING AGENTS
+              </span>
+            </div>
+            <h2 className="rs-serif" style={{ ...H2, fontSize: "clamp(42px,5vw,72px)", lineHeight: 1.05, color: "#FAF8F5" }}>
               Agents investigate.
               <br />
-              <span style={{ color: "#9AA0A8" }}>They never decide.</span>
+              <span style={{ color: "#64748B", fontStyle: "italic" }}>They never decide.</span>
             </h2>
-            <p style={{ margin: "28px 0 0", maxWidth: 500, color: "#A9AEB5", fontSize: 17, lineHeight: 1.6 }}>
-              The Investigator settles undecided claims. The Skeptic looks for footage that would break a decided label and can only downgrade it. Neither agent ever sets a label.
+            <p style={{ margin: "26px 0 0", maxWidth: 500, color: "#94A3B8", fontSize: 17, lineHeight: 1.6 }}>
+              The Investigator inspects unresolved or occluded moments. The Skeptic seeks contradictory evidence and can only downgrade preliminary verdicts. Neither agent ever sets a final label.
             </p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div data-reveal="" style={{ border: "1px solid rgba(124,199,255,0.22)", background: "#181818", borderRadius: 18, padding: "22px 24px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div data-reveal="" className="rs-card" style={{ borderRadius: 20, padding: "24px 26px" }}>
               <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12 }}>
-                <span style={{ color: "#7CC7FF" }}>investigator · c4#1</span>
-                <span style={{ color: "#7D838C" }}>4120 tok · $0.03</span>
+                <span style={{ color: "#34D399", fontWeight: 600 }}>investigator · c4#1</span>
+                <span style={{ color: "#64748B" }}>4120 tok · $0.03</span>
               </div>
-              <div className="rs-mono" style={{ marginTop: 12, fontSize: 15 }}>inspect CAM C 15–19s (entity)</div>
-              <div style={{ marginTop: 6, color: "#9AA0A8", fontSize: 14, lineHeight: 1.5 }}>B loses the box behind a hand; C is high and wide and may see over it.</div>
+              <div className="rs-mono" style={{ marginTop: 12, fontSize: 15, color: "#FAF8F5" }}>inspect CAM C 15–19s (entity)</div>
+              <div style={{ marginTop: 6, color: "#94A3B8", fontSize: 14, lineHeight: 1.5 }}>Camera B loses the subject behind an occlusion; Camera C is elevated and can see over it.</div>
             </div>
-            <div data-reveal="" style={{ position: "relative", border: "1px solid rgba(183,156,255,0.25)", background: "#181818", borderRadius: 18, padding: "22px 24px", overflow: "hidden" }}>
+            <div data-reveal="" className="rs-card" style={{ position: "relative", borderRadius: 20, padding: "24px 26px", overflow: "hidden" }}>
               <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12 }}>
-                <span style={{ color: "#B79CFF" }}>skeptic · c2</span>
-                <span style={{ color: "#7D838C" }}>enforceDowngradeOnly()</span>
+                <span style={{ color: "#A78BFA", fontWeight: 600 }}>skeptic · c2</span>
+                <span style={{ color: "#64748B" }}>enforceDowngradeOnly()</span>
               </div>
               <div className="rs-mono" style={{ marginTop: 14, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, fontSize: 15 }}>
-                <span style={{ color: "#FF5A47" }}>Contradicted</span>
-                <span style={{ color: "#5E646D" }}>→</span>
-                <span style={{ color: "#5BE49B", textDecoration: "line-through", textDecorationColor: "#ECE6DA" }}>Supported</span>
+                <span style={{ color: "#F43F5E" }}>Contradicted</span>
+                <span style={{ color: "#64748B" }}>→</span>
+                <span style={{ color: "#34D399", textDecoration: "line-through", textDecorationColor: "#FAF8F5" }}>Supported</span>
               </div>
-              <div style={{ marginTop: 6, color: "#9AA0A8", fontSize: 14, maxWidth: "calc(100% - 120px)" }}>Skeptic may only downgrade to Insufficient.</div>
-              <div className="rs-mono" style={{ position: "absolute", right: 22, top: "50%", marginTop: -20, padding: "8px 14px", border: "2px solid #FF5A47", color: "#FF5A47", fontWeight: 600, letterSpacing: "0.2em", fontSize: 14, transform: "rotate(-8deg)", borderRadius: 4, background: "rgba(6,7,9,0.7)" }}>
+              <div style={{ marginTop: 6, color: "#94A3B8", fontSize: 14, maxWidth: "calc(100% - 120px)" }}>Skeptic may only downgrade to Insufficient.</div>
+              <div className="rs-mono" style={{ position: "absolute", right: 22, top: "50%", marginTop: -20, padding: "7px 14px", border: "2px solid #F43F5E", color: "#F43F5E", fontWeight: 600, letterSpacing: "0.2em", fontSize: 13, transform: "rotate(-8deg)", borderRadius: 6, background: "rgba(8,9,11,0.85)", boxShadow: "0 0 20px rgba(244,63,94,0.3)" }}>
                 BLOCKED
               </div>
             </div>
@@ -159,35 +185,39 @@ export function Overview({
       </section>
 
       <section style={{ ...SECTION, padding: "clamp(60px,12vh,140px) clamp(20px,5vw,72px)", maxWidth: 1100, textAlign: "center" }}>
-        <div data-reveal="" className="rs-mono" style={{ fontSize: 12, letterSpacing: "0.14em", color: "#7D838C", marginBottom: 28 }}>PRIVACY</div>
-        <p data-reveal="" style={{ margin: 0, fontSize: "clamp(32px,4vw,56px)", lineHeight: 1.15, letterSpacing: "-0.01em", textWrap: "balance" }}>
-          Raw video stays on the laptop. Only short validated clips <span style={{ color: "#9AA0A8" }}>(4 s or less)</span> and low resolution stills go to the models. No face recognition.
+        <div data-reveal="" className="rs-mono" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, letterSpacing: "0.14em", color: "#34D399", marginBottom: 28, fontWeight: 500 }}>
+          DATA INTEGRITY & PRIVACY
+        </div>
+        <p data-reveal="" className="rs-serif" style={{ margin: 0, fontSize: "clamp(32px,4vw,56px)", lineHeight: 1.25, letterSpacing: "-0.015em", textWrap: "balance", color: "#FAF8F5" }}>
+          Raw video stays on the local device. Only short validated clips <span style={{ color: "#34D399", fontStyle: "italic" }}>(4 seconds or less)</span> and low resolution stills go to the models. Zero face recognition.
         </p>
       </section>
 
       <section style={{ ...SECTION, padding: "clamp(60px,12vh,140px) clamp(20px,5vw,72px) 60px", maxWidth: 1320 }}>
-        <div data-reveal="" style={{ position: "relative", overflow: "hidden", borderRadius: 28, border: "1px solid rgba(236,230,218,0.1)", padding: "clamp(40px,7vw,96px)", background: "#131209" }}>
-          <h2 style={{ margin: 0, fontWeight: 500, fontSize: "clamp(40px,5vw,72px)", letterSpacing: "-0.04em", lineHeight: 1 }}>See every label’s proof.</h2>
-          <p style={{ margin: "18px 0 0", color: "#9AA0A8", fontSize: 17, maxWidth: 520, lineHeight: 1.55 }}>
-            Replay scene {sceneId} on the board: the footage pass, the agents, and the evidence behind each claim.
+        <div data-reveal="" style={{ position: "relative", overflow: "hidden", borderRadius: 32, border: "1px solid rgba(255,255,255,0.1)", padding: "clamp(40px,7vw,96px)", background: "linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(15,17,23,0.8) 50%, rgba(8,9,11,0.95) 100%)", backdropFilter: "blur(32px)", boxShadow: "0 40px 100px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)" }}>
+          <h2 className="rs-serif" style={{ margin: 0, fontWeight: 400, fontSize: "clamp(42px,5.4vw,76px)", letterSpacing: "-0.03em", lineHeight: 1.05, color: "#FAF8F5" }}>
+            See every label&rsquo;s <span style={{ fontStyle: "italic", color: "#34D399" }}>proof.</span>
+          </h2>
+          <p style={{ margin: "20px 0 0", color: "#94A3B8", fontSize: 17, maxWidth: 540, lineHeight: 1.6 }}>
+            Replay scene {sceneId} on the board: the multi-angle footage pass, the autonomous agents, and the camera evidence behind each claim.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 36 }}>
-            <Link href="/new" className="rs-btn rs-btn-primary" style={{ padding: "15px 26px", fontSize: 15 }}>
+            <Link href="/new" className="rs-btn rs-btn-primary" style={{ padding: "15px 28px", fontSize: 14, fontWeight: 600 }}>
               Start a new investigation
             </Link>
-            <Link href="/board" className="rs-btn rs-btn-line" style={{ padding: "15px 26px", fontSize: 15, color: "#ECE6DA" }}>
+            <Link href="/board" className="rs-btn rs-btn-ghost" style={{ padding: "15px 28px", fontSize: 14, color: "#FAF8F5" }}>
               Open the board
             </Link>
-            <Link href="/proof" className="rs-btn rs-btn-line" style={{ padding: "15px 26px", fontSize: 15, color: "#ECE6DA" }}>
+            <Link href="/proof" className="rs-btn rs-btn-ghost" style={{ padding: "15px 28px", fontSize: 14, color: "#FAF8F5" }}>
               Open the proof
             </Link>
-            <Link href="/capture" className="rs-btn rs-btn-line" style={{ padding: "15px 26px", fontSize: 15, color: "#ECE6DA" }}>
+            <Link href="/capture" className="rs-btn rs-btn-ghost" style={{ padding: "15px 28px", fontSize: 14, color: "#FAF8F5" }}>
               Capture walkthrough
             </Link>
           </div>
         </div>
-        <div className="rs-mono" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, marginTop: 40, fontSize: 11, letterSpacing: "0.08em", color: "#5E646D" }}>
-          <span>RASHOMON · Gemini 4 NYC Hackathon · Problem Statement Two: Element 119</span>
+        <div className="rs-mono" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, marginTop: 40, fontSize: 11, letterSpacing: "0.08em", color: "#475569" }}>
+          <span>VERA · Gemini 4 NYC Hackathon · Problem Statement Two: Element 119</span>
           <span>Best Use of Managed Agents</span>
         </div>
       </section>
