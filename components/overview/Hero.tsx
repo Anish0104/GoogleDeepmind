@@ -36,7 +36,7 @@ function HudCard({ sceneId, claims, results }: { sceneId: string; claims: Claim[
         right: "clamp(20px,4vw,64px)",
         bottom: "clamp(56px,10vh,110px)",
         width: 360,
-        background: isDark ? "rgba(15,17,23,0.72)" : "rgba(255,255,255,0.88)",
+        background: isDark ? "rgba(15,17,23,0.72)" : "rgba(255,255,255,0.92)",
         backdropFilter: "blur(24px)",
         WebkitBackdropFilter: "blur(24px)",
         border: `1px solid ${isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)"}`,
@@ -44,16 +44,16 @@ function HudCard({ sceneId, claims, results }: { sceneId: string; claims: Claim[
         padding: "20px 22px",
         boxShadow: isDark
           ? "0 30px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)"
-          : "0 24px 60px -8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.95)",
+          : "0 20px 48px -8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1)",
         transition: "all 0.4s ease",
       }}
     >
-      <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, letterSpacing: "0.08em", color: isDark ? "#64748B" : "#94A3B8" }}>
+      <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, letterSpacing: "0.08em", color: isDark ? "#64748B" : "#475569" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 8px #10B981" }} />
-          <span style={{ color: "#10B981", fontWeight: 600 }}>LIVE SYNC</span> · {sceneId} · {claim.id}
+          <span style={{ color: isDark ? "#10B981" : "#059669", fontWeight: 600 }}>LIVE SYNC</span> · {sceneId} · {claim.id}
         </span>
-        <span style={{ color: isDark ? "#94A3B8" : "#64748B" }}>{winTxt(claim.window)}</span>
+        <span style={{ color: isDark ? "#94A3B8" : "#475569" }}>{winTxt(claim.window)}</span>
       </div>
       <div className="rs-serif" style={{ marginTop: 14, minHeight: 68, fontSize: 22, lineHeight: 1.35, color: isDark ? "#FAF8F5" : "#0A0C10", fontStyle: "italic", transition: "color 0.4s ease" }}>
         &ldquo;{typed}&rdquo;
@@ -61,7 +61,7 @@ function HudCard({ sceneId, claims, results }: { sceneId: string; claims: Claim[
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, marginTop: 12 }}>
         {result.evidence.map((e, i) => (
-          <div key={i} className="rs-mono" style={{ fontSize: 11, color: isDark ? "#94A3B8" : "#64748B" }}>
+          <div key={i} className="rs-mono" style={{ fontSize: 11, color: isDark ? "#94A3B8" : "#475569" }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>CAM {e.camera}</span>
               <span style={{ color: isDark ? "#FAF8F5" : "#0A0C10" }}>vis {e.visible.toFixed(2)}</span>
@@ -82,7 +82,7 @@ function HudCard({ sceneId, claims, results }: { sceneId: string; claims: Claim[
             {v.mark} {result.verdict}
           </div>
         ) : (
-          <div className="rs-mono" style={{ fontSize: 11, color: isDark ? "#64748B" : "#94A3B8", letterSpacing: "0.08em" }}>
+          <div className="rs-mono" style={{ fontSize: 11, color: isDark ? "#64748B" : "#475569", letterSpacing: "0.08em" }}>
             checking {result.evidence.length > 1 ? `${result.evidence.length} angles` : "the angles"}…
           </div>
         )}
@@ -116,6 +116,7 @@ export function Hero({
       cx: r ? p.x - r.left : -9999,
       cy: r ? p.y - r.top : -9999,
       scrollY: window.scrollY || 0,
+      theme: theme,
     });
   });
 
@@ -155,14 +156,14 @@ export function Hero({
               display: "inline-flex",
               alignItems: "center",
               gap: 8,
-              padding: "5px 14px",
+              padding: "6px 16px",
               borderRadius: 999,
-              background: "rgba(16, 185, 129, 0.08)",
-              border: "1px solid rgba(16, 185, 129, 0.22)",
-              color: "#10B981",
+              background: isDark ? "rgba(16, 185, 129, 0.08)" : "rgba(16, 185, 129, 0.12)",
+              border: `1px solid ${isDark ? "rgba(16, 185, 129, 0.22)" : "rgba(16, 185, 129, 0.32)"}`,
+              color: isDark ? "#34D399" : "#065F46",
               fontSize: 11,
               letterSpacing: "0.14em",
-              fontWeight: 500,
+              fontWeight: 600,
             }}
           >
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", boxShadow: "0 0 10px #10B981", flex: "none" }} />
@@ -189,11 +190,7 @@ export function Hero({
             style={{
               fontStyle: "italic",
               fontWeight: 400,
-              background: isDark
-                ? "linear-gradient(90deg, #34D399 0%, #10B981 45%, #6EE7B7 100%)"
-                : "linear-gradient(90deg, #059669 0%, #10B981 45%, #047857 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
+              color: isDark ? "#34D399" : "#059669",
             }}
           >
             Let the cameras prove it.

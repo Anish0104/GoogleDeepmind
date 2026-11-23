@@ -14,15 +14,15 @@ export function AgentTrace({ steps, shown, T, end }: { steps: TimedStep[]; shown
   return (
     <div className="rs-card" style={{ borderRadius: 16, padding: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 500 }}>Agent trace</h2>
-        <span className="rs-mono" style={{ fontSize: 12, color: "#7D838C" }}>
+        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 500, color: "var(--text-ink)" }}>Agent trace</h2>
+        <span className="rs-mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
           {shown.length} / {steps.length} steps
         </span>
       </div>
       {steps.length === 0 ? (
-        <p style={{ margin: "14px 0 0", fontSize: 13, color: "#7D838C", lineHeight: 1.5 }}>No agent ran on this scene.</p>
+        <p style={{ margin: "14px 0 0", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>No agent ran on this scene.</p>
       ) : shown.length === 0 ? (
-        <p style={{ margin: "14px 0 0", fontSize: 13, color: "#7D838C", lineHeight: 1.5 }}>
+        <p style={{ margin: "14px 0 0", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>
           Agents start after the footage pass. They pick extra clips to check, two follow-ups per claim.
         </p>
       ) : null}
@@ -38,12 +38,12 @@ export function AgentTrace({ steps, shown, T, end }: { steps: TimedStep[]; shown
               <div style={{ minWidth: 0 }}>
                 <div className="rs-mono" style={{ fontSize: 12, lineHeight: 1.45 }}>
                   <span style={{ color: AGENT_COLOR[s.step.agent] }}>{s.step.agent}</span>{" "}
-                  <span style={{ color: "#7D838C" }}>
+                  <span style={{ color: "var(--text-muted)" }}>
                     {s.step.claimId}#{s.step.n}
                   </span>{" "}
-                  <span style={{ color: "#ECE6DA" }}>{s.line}</span>
+                  <span style={{ color: "var(--text-ink)" }}>{s.line}</span>
                 </div>
-                <div style={{ marginTop: 3, fontSize: 13, lineHeight: 1.5, color: "#A9AEB5" }}>
+                <div style={{ marginTop: 3, fontSize: 13, lineHeight: 1.5, color: "var(--text-body)" }}>
                   {typing ? s.reason.slice(0, Math.max(0, n)) : s.reason}
                   {typing && <span className="rs-caret" />}
                 </div>
@@ -52,8 +52,8 @@ export function AgentTrace({ steps, shown, T, end }: { steps: TimedStep[]; shown
                     LABEL CHANGE BLOCKED
                   </div>
                 )}
-                <div className="rs-mono" style={{ marginTop: 4, fontSize: 11, color: "#5E646D" }}>
-                  {s.step.tokens} tok · ${s.step.costUsd.toFixed(2)} · {s.step.latencyMs}ms
+                <div className="rs-mono" style={{ marginTop: 4, fontSize: 11, color: "var(--text-muted)" }}>
+                  {s.step.tokens} tok · {s.step.latencyMs}ms
                 </div>
               </div>
             </li>

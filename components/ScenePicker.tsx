@@ -12,13 +12,13 @@ export function ScenePicker({ scenes, current }: { scenes: string[]; current: st
   const router = useRouter();
   if (scenes.length <= 1) return null;
   return (
-    <label className="rs-mono" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#7D838C" }}>
+    <label className="rs-mono" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
       replay
       <select
         value={current}
         onChange={(e) => router.push(boardHref(e.target.value))}
         className="rs-mono"
-        style={{ borderRadius: 999, border: "1px solid rgba(236,230,218,0.18)", background: "#000", color: "#ECE6DA", padding: "6px 10px", fontSize: 12 }}
+        style={{ borderRadius: 999, border: "1px solid var(--border-card)", background: "var(--bg-card)", color: "var(--text-ink)", padding: "6px 10px", fontSize: 12 }}
       >
         {scenes.map((s) => (
           <option key={s} value={s}>

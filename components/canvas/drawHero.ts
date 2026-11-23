@@ -20,6 +20,7 @@ export interface HeroInput {
   cx: number; // raw pointer in canvas pixels (-9999 when unknown)
   cy: number;
   scrollY: number;
+  theme?: "dark" | "light";
 }
 
 /** Mat point cloud and drifting dust. rand is injectable for tests. */
@@ -74,12 +75,13 @@ export function drawConvergence(
   st: HeroState,
   inp: HeroInput,
 ): void {
-  ctx.fillStyle = "#000000";
+  const isLight = inp.theme === "light";
+  ctx.fillStyle = isLight ? "#F8F9FA" : "#08090B";
   ctx.fillRect(0, 0, w, h);
   const ox = w > 900 ? w * 0.64 : w * 0.5;
   const g = ctx.createRadialGradient(ox, h * 0.48, 0, ox, h * 0.48, Math.max(w, h) * 0.6);
-  g.addColorStop(0, "rgba(124,199,255,0.07)");
-  g.addColorStop(1, "rgba(6,7,9,0)");
+  g.addColorStop(0, isLight ? "rgba(16,185,129,0.06)" : "rgba(16,185,129,0.08)");
+  g.addColorStop(1, isLight ? "rgba(248,249,250,0)" : "rgba(8,9,11,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
@@ -98,7 +100,7 @@ export function drawConvergence(
   for (const d of st.dust) {
     const p = P([d[0] + Math.sin(time * 0.2 + d[3] * 9) * 0.3, d[1] + Math.sin(time * 0.3 + d[3] * 5) * 0.2, d[2]]);
     if (!p) continue;
-    ctx.fillStyle = `rgba(236,230,218,${0.08 + d[3] * 0.18})`;
+    ctx.fillStyle = isLight ? `rgba(15,23,42,${0.04 + d[3] * 0.1})` : `rgba(236,230,218,${0.08 + d[3] * 0.18})`;
     const s = Math.max(0.6, 3 / p[2]);
     ctx.fillRect(p[0], p[1], s, s);
   }
@@ -109,7 +111,7 @@ export function drawConvergence(
   const prev = HERO_EVENTS[(ix + 2) % 3]!;
   const ev = HERO_EVENTS[ix]!;
   const E = V.lerp(prev.p, ev.p, sstep(0, 0.18, loc));
-  const vc = VERDICT_STYLE[ev.v].color;
+  const vc = isLight && ev.v === "Supported" ? "#059669" : VERDICT_STYLE[ev.v].color;
 
   for (const q of st.pts) {
     const p = P([q[0], q[1], q[2]]);
@@ -121,11 +123,13 @@ export function drawConvergence(
     const ring = Math.exp(-Math.pow(de - ((time * 2.2) % 4), 2) * 6) * 0.5;
     const a = Math.min(1, (0.12 + q[3] * 0.35 + near * 0.6 + ring) * Math.min(1, 7 / p[2]));
     const s = Math.max(0.8, ((2.2 + near * 2.5) / p[2]) * 3.2);
-    ctx.fillStyle = ring > 0.15 ? `rgba(124,199,255,${a})` : `rgba(236,230,218,${a})`;
+    ctx.fillStyle = ring > 0.15
+      ? (isLight ? `rgba(16,185,129,${a * 0.85})` : `rgba(52,211,153,${a})`)
+      : (isLight ? `rgba(30,41,59,${a * 0.65})` : `rgba(236,230,218,${a})`);
     ctx.fillRect(p[0] - s / 2, p[1] - s / 2, s, s);
   }
 
-  ctx.strokeStyle = "rgba(236,230,218,0.35)";
+  ctx.strokeStyle = isLight ? "rgba(30,41,59,0.25)" : "rgba(236,230,218,0.35)";
   ctx.lineWidth = 1;
   wbox(ctx, P, [-0.9, 1.05, -3.05], [0.9, 1.15, -2.35]);
   wbox(ctx, P, [-2.15, 0, 0.85], [-1.65, 0.42, 1.35]);
@@ -139,14 +143,14 @@ export function drawConvergence(
     const off = id === "D";
     const inv = ev.cams.includes(id);
     const col = off
-      ? "rgba(120,126,135,"
+      ? (isLight ? "rgba(148,163,184," : "rgba(120,126,135,")
       : ev.v === "Insufficient" && inv
-        ? "rgba(255,194,61,"
+        ? "rgba(245,158,11,"
         : inv
           ? ev.v === "Contradicted"
-            ? "rgba(255,90,71,"
-            : "rgba(91,228,155,"
-          : "rgba(236,230,218,";
+            ? (isLight ? "rgba(225,29,72," : "rgba(255,90,71,")
+            : (isLight ? "rgba(5,150,105," : "rgba(91,228,155,")
+          : (isLight ? "rgba(100,116,139," : "rgba(236,230,218,");
     const fw = V.norm(V.sub(E, pos));
     const rt = V.norm(V.cross(fw, [0, 1, 0]));
     const up = V.cross(rt, fw);
@@ -170,14 +174,14 @@ export function drawConvergence(
       ctx.stroke();
     }
     ctx.fillStyle = col + "0.95)";
-    ctx.font = '500 11px "Geist Mono",monospace';
+    ctx.font = '500 11px var(--font-mono),monospace';
     ctx.fillText(`CAM ${id}${off ? " · excluded" : ""}`, pc[0] + 8, pc[1] - 8);
 
     if (!off && pE) {
       const reach = ev.v === "Insufficient" && inv ? 0.72 : 1;
       const n = 26;
       ctx.save();
-      ctx.globalCompositeOperation = "lighter";
+      ctx.globalCompositeOperation = isLight ? "source-over" : "lighter";
       for (let i = 0; i < n; i++) {
         const uu = (i / n + time * 0.45 + k * 0.13) % 1;
         if (uu > reach) continue;
@@ -217,7 +221,7 @@ export function drawConvergence(
     ctx.arc(pE[0], pE[1], 5, 0, 7);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(236,230,218,0.5)";
+    ctx.strokeStyle = isLight ? "rgba(15,23,42,0.4)" : "rgba(236,230,218,0.5)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(pE[0] - 18, pE[1]);
@@ -234,7 +238,7 @@ export function drawConvergence(
     ctx.lineTo(lx - 4, ly + 10);
     ctx.stroke();
     ctx.font = '500 12px "Geist Mono",monospace';
-    ctx.fillStyle = "rgba(236,230,218,0.9)";
+    ctx.fillStyle = isLight ? "rgba(15,23,42,0.9)" : "rgba(236,230,218,0.9)";
     ctx.fillText(ev.label, lx, ly);
     ctx.fillStyle = vc;
     ctx.fillText(`${VERDICT_STYLE[ev.v].mark} ${ev.v.toUpperCase()}  ${ev.score}`, lx, ly + 17);
@@ -242,12 +246,15 @@ export function drawConvergence(
 }
 
 export function drawBraid(ctx: CanvasRenderingContext2D, w: number, h: number, time: number, inp: HeroInput): void {
-  ctx.fillStyle = "#000000";
+  const isLight = inp.theme === "light";
+  ctx.fillStyle = isLight ? "#F8F9FA" : "#08090B";
   ctx.fillRect(0, 0, w, h);
   const cy = h * 0.4;
-  const cols = ["124,199,255", "236,230,218", "255,90,71", "255,194,61"];
+  const cols = isLight
+    ? ["14,165,233", "71,85,105", "225,29,72", "217,119,6"]
+    : ["124,199,255", "236,230,218", "255,90,71", "255,194,61"];
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
+  ctx.globalCompositeOperation = isLight ? "source-over" : "lighter";
   for (let s = 0; s < 4; s++) {
     const N = 340;
     for (let k = 0; k < N; k++) {
@@ -272,7 +279,7 @@ export function drawBraid(ctx: CanvasRenderingContext2D, w: number, h: number, t
   ctx.font = '500 11px "Geist Mono",monospace';
   const ax = w * 0.46;
   const bx = w * 0.78;
-  ctx.strokeStyle = "rgba(236,230,218,0.18)";
+  ctx.strokeStyle = isLight ? "rgba(71,85,105,0.3)" : "rgba(236,230,218,0.18)";
   ctx.setLineDash([3, 5]);
   ctx.beginPath();
   ctx.moveTo(ax, cy - h * 0.26);
@@ -281,18 +288,19 @@ export function drawBraid(ctx: CanvasRenderingContext2D, w: number, h: number, t
   ctx.lineTo(bx, cy + h * 0.36);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = "#5BE49B";
+  ctx.fillStyle = isLight ? "#059669" : "#5BE49B";
   ctx.fillText("✓ A · B · C AGREE  0.86", ax + 8, cy - h * 0.24);
-  ctx.fillStyle = "#FF5A47";
+  ctx.fillStyle = isLight ? "#E11D48" : "#FF5A47";
   ctx.fillText("✗ C BREAKS AWAY  0.93", bx + 8, cy - h * 0.24);
   ["A", "B", "C", "D"].forEach((id, s) => {
-    ctx.fillStyle = `rgba(${cols[s]},0.9)`;
+    ctx.fillStyle = isLight ? "rgba(15,23,42,0.85)" : `rgba(${cols[s]},0.9)`;
     ctx.fillText(`CAM ${id}${id === "D" ? " · lost" : ""}`, w * 0.04, h * 0.14 + s * 16);
   });
 }
 
 export function drawField(ctx: CanvasRenderingContext2D, w: number, h: number, time: number, inp: HeroInput): void {
-  ctx.fillStyle = "#000000";
+  const isLight = inp.theme === "light";
+  ctx.fillStyle = isLight ? "#F8F9FA" : "#08090B";
   ctx.fillRect(0, 0, w, h);
   const cell = 18;
   const cols = Math.ceil(w / cell);

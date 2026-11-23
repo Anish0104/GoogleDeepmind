@@ -16,7 +16,7 @@ const SECTION = { position: "relative", zIndex: 2, margin: "0 auto" } as const;
 const H2 = { margin: 0, fontWeight: 400, fontSize: "clamp(42px,5.4vw,80px)", lineHeight: 1.02, letterSpacing: "-0.025em" } as const;
 
 const HOW = [
-  { n: "01", color: "#FAF8F5", title: "Capture & sync", body: "4 phones record around a mat with zones A–F; an acoustic clap and screen flash line them up to sub-frame precision.", chips: ["acoustic clap + flash", "≤ 4 s clips"] },
+  { n: "01", color: "#38BDF8", title: "Capture & sync", body: "4 phones record around a mat with zones A–F; an acoustic clap and screen flash line them up to sub-frame precision.", chips: ["acoustic clap + flash", "≤ 4 s clips"] },
   { n: "02", color: "#34D399", title: "Evidence synthesis", body: "Gemini lists critical entities and yes/no visual questions; the Gemini Decisions API evaluates every camera angle and half-second slice with calibrated probability.", chips: ["hydrogen", "decision-1"] },
   { n: "03", color: "#10B981", title: "Grounded labels", body: "Deterministic rules in verdict() evaluate cross-camera evidence into mathematical labels. Contradicted requires absolute consensus. Carbon extracts claims into cited timestamps.", chips: ["verdict()", "carbon"] },
   { n: "04", color: "#A78BFA", title: "Autonomous agents", body: "Two Gemini Managed Agents inspect edge clips. The Investigator settles undecided claims; the Skeptic seeks falsifying footage to challenge preliminary verdicts.", chips: ["Investigator", "Skeptic"] },
@@ -163,7 +163,7 @@ export function Overview({
             <div data-reveal="" className="rs-card" style={{ borderRadius: 20, padding: "24px 26px" }}>
               <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12 }}>
                 <span style={{ color: "#10B981", fontWeight: 600 }}>investigator · c4#1</span>
-                <span style={{ color: "#64748B" }}>4120 tok · $0.03</span>
+                <span style={{ color: "var(--text-muted)" }}>4,120 tok</span>
               </div>
               <div className="rs-mono" style={{ marginTop: 12, fontSize: 15, color: isDark ? "#FAF8F5" : "#0A0C10" }}>inspect CAM C 15–19s (entity)</div>
               <div style={{ marginTop: 6, color: isDark ? "#94A3B8" : "#475569", fontSize: 14, lineHeight: 1.5 }}>Camera B loses the subject behind an occlusion; Camera C is elevated and can see over it.</div>

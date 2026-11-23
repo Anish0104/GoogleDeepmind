@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   // Video chunks from the phones can be large.
   experimental: {
     serverActions: { bodySizeLimit: "20mb" },

@@ -28,27 +28,27 @@ export function ClaimRow({
       style={{
         display: "block",
         textAlign: "left",
-        background: s ? s.bg : "rgba(236,230,218,0.02)",
-        border: `1px solid ${s ? s.border : "rgba(236,230,218,0.08)"}`,
+        background: s ? s.bg : "var(--bg-card)",
+        border: `1px solid ${s ? s.border : "var(--border-card)"}`,
         borderRadius: 12,
         padding: 14,
-        color: "#ECE6DA",
+        color: "var(--text-ink)",
         transition: "background .4s cubic-bezier(.22,1,.36,1),border-color .4s cubic-bezier(.22,1,.36,1)",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-        <span style={{ fontSize: 18, lineHeight: 1.25 }}>&ldquo;{claim.text}&rdquo;</span>
+        <span style={{ fontSize: 18, lineHeight: 1.25, color: "var(--text-ink)" }}>&ldquo;{claim.text}&rdquo;</span>
         {s ? (
           <span className="rs-mono" style={{ flex: "none", fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", padding: "4px 8px", borderRadius: 5, border: `1px solid ${s.color}`, color: s.color }}>
             {s.mark} {s.label}
           </span>
         ) : (
-          <span className="rs-mono rs-shimmer" style={{ flex: "none", fontSize: 11, padding: "4px 8px", borderRadius: 5, color: "#7D838C" }}>
+          <span className="rs-mono rs-shimmer" style={{ flex: "none", fontSize: 11, padding: "4px 8px", borderRadius: 5, color: "var(--text-muted)" }}>
             {T < claim.window[0] ? "queued" : "reading…"}
           </span>
         )}
       </div>
-      <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, fontSize: 12, color: "#7D838C" }}>
+      <div className="rs-mono" style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>
         <span>
           {claim.id} · {winTxt(claim.window)}
           {claim.timeIsPrecise ? "" : " · approx"}

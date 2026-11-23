@@ -143,8 +143,8 @@ export function Board({
         <aside style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="rs-card" style={{ borderRadius: 16, padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 500 }}>Claims</h2>
-              <span className="rs-mono" style={{ fontSize: 12, color: "#7D838C" }}>
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 500, color: "var(--text-ink)" }}>Claims</h2>
+              <span className="rs-mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
                 {[...new Set(claims.map((c) => c.actor))].join(", ")}
               </span>
             </div>
